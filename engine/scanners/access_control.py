@@ -20,7 +20,15 @@ class BrokenAccessControlScanner(BaseScanner):
         """Scan target for Access Control vulnerabilities"""
         vulnerabilities = []
         logger.info(f"Starting Access Control scan on {target.url}")
-        
+
+        # Every test below infers "resource found / accessible" from a 200 response.
+        # If the server answers 2xx for paths that cannot exist (SPAs, catch-all
+        # routers), those 200s are meaningless — skip to avoid false positives.
+        if self.server_soft_404s(target.url):
+            logger.info("Server soft-404s (2xx for non-existent paths); skipping "
+                        "path-based access-control checks")
+            return vulnerabilities
+
         # Test 1: Direct object reference without auth
         test_paths = [
             '/admin',

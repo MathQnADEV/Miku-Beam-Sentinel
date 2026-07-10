@@ -22,7 +22,9 @@ class SensitiveDataExposureScanner(BaseScanner):
         vulnerabilities = []
         logger.info(f"Starting Data Exposure scan on {target.url}")
         
-        # Patterns for sensitive data
+        # Patterns for genuinely sensitive data only. 'Email' and 'IP Address' were
+        # removed: they match ordinary page content (contact info, JS, version strings)
+        # and are not, by themselves, a data-exposure vulnerability.
         patterns = {
             'API Key': r'(?i)(api[_-]?key|apikey|api[_-]?secret)["\']?\s*[:=]\s*["\']?([a-zA-Z0-9_\-]{20,})',
             'AWS Key': r'AKIA[0-9A-Z]{16}',
@@ -30,23 +32,15 @@ class SensitiveDataExposureScanner(BaseScanner):
             'Password': r'(?i)(password|passwd|pwd)["\']?\s*[:=]\s*["\']([^"\'\\s]{6,})',
             'JWT Token': r'eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+',
             'Database URL': r'(?i)(mysql|postgresql|mongodb)://[^\s<>"]+',
-            'Email': r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}',
-            'IP Address': r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b'
         }
-        
+
         try:
             response = self.session.get(target.url, timeout=10)
-            
+
             # Check response body for sensitive data
             for data_type, pattern in patterns.items():
                 matches = re.findall(pattern, response.text)
                 if matches:
-                    # Filter out common false positives
-                    if data_type == 'Email' and len(matches) > 10:
-                        continue  # Likely legitimate email list
-                    if data_type == 'IP Address' and len(matches) > 5:
-                        continue  # Likely legitimate IP references
-                    
                     vulnerabilities.append(Vulnerability(
                         name=f"Sensitive Data Exposure: {data_type}",
                         severity="HIGH" if data_type in ['API Key', 'AWS Key', 'Private Key', 'Password'] else "MEDIUM",
@@ -67,23 +61,30 @@ class SensitiveDataExposureScanner(BaseScanner):
                 '/server.xml'
             ]
             
-            for file_path in sensitive_files:
-                test_url = target.url.rstrip('/') + file_path
-                try:
-                    file_response = self.session.get(test_url, timeout=5)
-                    if file_response.status_code == 200 and len(file_response.text) > 10:
-                        vulnerabilities.append(Vulnerability(
-                            name="Sensitive File Exposure",
-                            severity="CRITICAL",
-                            description=f"Sensitive configuration file accessible: {file_path}",
-                            evidence=f"File contents (first 100 chars): {file_response.text[:100]}",
-                            url=test_url
-                        ))
-                except Exception:
-                    pass
+            # Only meaningful if the server actually 404s missing paths; otherwise
+            # every path "200s" and this would cry CRITICAL on all of them.
+            if not self.server_soft_404s(target.url):
+                for file_path in sensitive_files:
+                    test_url = target.url.rstrip('/') + file_path
+                    try:
+                        file_response = self.session.get(test_url, timeout=5)
+                        if file_response.status_code == 200 and len(file_response.text) > 10:
+                            vulnerabilities.append(Vulnerability(
+                                name="Sensitive File Exposure",
+                                severity="CRITICAL",
+                                description=f"Sensitive configuration file accessible: {file_path}",
+                                evidence=f"File contents (first 100 chars): {file_response.text[:100]}",
+                                url=test_url
+                            ))
+                    except Exception:
+                        pass
             
-            # Check for unencrypted transmission (HTTP instead of HTTPS)
-            if target.url.startswith('http://'):
+            # Check for unencrypted transmission (HTTP instead of HTTPS).
+            # Skip local targets — http://localhost is normal for local development.
+            from urllib.parse import urlparse
+            host = (urlparse(target.url).hostname or '').lower()
+            is_local = host in ('localhost', '127.0.0.1', '::1') or host.endswith('.local')
+            if target.url.startswith('http://') and not is_local:
                 vulnerabilities.append(Vulnerability(
                     name="Unencrypted Communication",
                     severity="HIGH",

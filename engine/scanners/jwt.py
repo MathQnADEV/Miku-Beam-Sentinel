@@ -48,7 +48,11 @@ class JWTScanner(BaseScanner):
                     if len(parts) >= 2:
                         header = json.loads(base64.urlsafe_b64decode(parts[0] + '=='))
                         
-                        # Check for algorithm vulnerabilities
+                        # Only the 'none' algorithm is a vulnerability on its own
+                        # (it disables signature verification). HS256/384/512 are
+                        # normal, secure choices — flagging them was a false positive
+                        # (the RS256->HS256 key-confusion attack can't be inferred
+                        # just from seeing an HS256 token).
                         if header.get('alg') == 'none':
                             vulnerabilities.append(Vulnerability(
                                 name="JWT None Algorithm",
@@ -57,16 +61,7 @@ class JWTScanner(BaseScanner):
                                 evidence=f"JWT header: {header}",
                                 url=target.url
                             ))
-                        
-                        if header.get('alg') in ['HS256', 'HS384', 'HS512']:
-                            vulnerabilities.append(Vulnerability(
-                                name="JWT Symmetric Algorithm",
-                                severity="MEDIUM",
-                                description="JWT uses HMAC algorithm which may be vulnerable to key confusion",
-                                evidence=f"Algorithm: {header.get('alg')}",
-                                url=target.url
-                            ))
-                            
+
                 except Exception as e:
                     logger.debug(f"Error decoding JWT: {e}")
                     

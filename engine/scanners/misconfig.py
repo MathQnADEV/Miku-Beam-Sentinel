@@ -24,16 +24,20 @@ class SecurityMisconfigurationScanner(BaseScanner):
         try:
             response = self.session.get(target.url, timeout=10)
             
-            # Test 1: Missing security headers
+            # Test 1: Missing security headers.
+            # X-XSS-Protection is intentionally omitted: it is deprecated and current
+            # guidance is to NOT send it, so its absence is not a vulnerability.
             security_headers = {
                 'X-Frame-Options': 'Missing X-Frame-Options header (Clickjacking protection)',
                 'X-Content-Type-Options': 'Missing X-Content-Type-Options header',
                 'Strict-Transport-Security': 'Missing HSTS header (HTTPS enforcement)',
                 'Content-Security-Policy': 'Missing Content-Security-Policy header',
-                'X-XSS-Protection': 'Missing X-XSS-Protection header'
             }
-            
+
             for header, description in security_headers.items():
+                # HSTS only applies over HTTPS; don't flag it on plain-HTTP targets.
+                if header == 'Strict-Transport-Security' and not target.url.lower().startswith('https'):
+                    continue
                 if header not in response.headers:
                     vulnerabilities.append(Vulnerability(
                         name="Missing Security Header",
@@ -43,20 +47,17 @@ class SecurityMisconfigurationScanner(BaseScanner):
                         url=target.url
                     ))
             
-            # Test 2: Debug mode / verbose errors
+            # Test 2: Debug mode / verbose errors.
+            # Only strong, specific signals — the previous generic ones ('Exception',
+            # 'Warning:', 'at line', 'syntax error') matched ordinary pages.
             debug_indicators = [
-                'Traceback',
+                'Traceback (most recent call last)',
                 'DEBUG = True',
-                'Stack trace',
-                'Exception',
-                'at line',
-                'syntax error',
-                'mysql_',
-                'SQLSTATE',
-                'Warning:',
-                'Fatal error:'
+                'Stack trace:',
+                'SQLSTATE[',
+                'Fatal error:',
             ]
-            
+
             for indicator in debug_indicators:
                 if indicator in response.text:
                     vulnerabilities.append(Vulnerability(
@@ -102,7 +103,9 @@ class SecurityMisconfigurationScanner(BaseScanner):
                 options_response = self.session.options(target.url, timeout=5)
                 if 'Allow' in options_response.headers:
                     allowed_methods = options_response.headers['Allow']
-                    dangerous_methods = ['TRACE', 'TRACK', 'DELETE', 'PUT']
+                    # DELETE/PUT are normal REST verbs — not "dangerous". Only TRACE/
+                    # TRACK (Cross-Site Tracing) are genuinely risky.
+                    dangerous_methods = ['TRACE', 'TRACK']
                     found_dangerous = [m for m in dangerous_methods if m in allowed_methods]
                     if found_dangerous:
                         vulnerabilities.append(Vulnerability(

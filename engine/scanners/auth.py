@@ -25,32 +25,41 @@ class AuthScanner(BaseScanner):
         return vulnerabilities
     
     def _test_missing_auth(self, target: Target) -> List[Vulnerability]:
-        """Test for missing authentication"""
+        """Flag only when supplied credentials are ignored (a real differential).
+
+        A bare "endpoint returns 200" is NOT a vulnerability — most pages do. We can
+        only judge auth enforcement when the scan session actually carries credentials:
+        if stripping them still yields the same successful response, auth is not
+        enforced. Without credentials configured we cannot tell, so we report nothing.
+        """
         vulns = []
-        
+
+        auth_header = self.session.headers.get('Authorization') if hasattr(self.session, 'headers') else None
+        has_credentials = bool(auth_header) or bool(getattr(self.session, 'cookies', None))
+        if not has_credentials:
+            return vulns  # can't judge -> stay silent instead of flagging every 200
+
         try:
-            # Try accessing without auth headers
+            authed = self.session.request(method=target.method, url=target.url, timeout=10)
             clean_session = self.session.__class__()
-            response = clean_session.request(
-                method=target.method,
-                url=target.url,
-                timeout=10
-            )
-            
-            # If we get 200 without auth, it might be a vulnerability
-            if response.status_code == 200:
-                vuln = Vulnerability(
-                    name="Missing Authentication",
-                    description="The API endpoint is accessible without authentication. Sensitive endpoints should require proper authentication.",
+            unauth = clean_session.request(method=target.method, url=target.url, timeout=10)
+
+            authed_len = max(1, len(authed.content))
+            similar = abs(len(unauth.content) - len(authed.content)) < authed_len * 0.1
+            if authed.status_code == 200 and unauth.status_code == 200 and similar:
+                vulns.append(Vulnerability(
+                    name="Authentication Not Enforced",
+                    description="The endpoint returns the same successful response with and without the supplied credentials, indicating authentication is not enforced.",
                     severity="MEDIUM",
-                    evidence=f"URL: {target.url}, Status: {response.status_code} (unauthenticated)"
-                )
-                vulns.append(vuln)
-                logger.warning(f"Missing authentication at {target.url}")
-                
+                    evidence=f"URL: {target.url}. Authenticated and unauthenticated requests both returned HTTP 200 with near-identical bodies.",
+                    url=target.url,
+                    recommendation="Enforce authentication server-side; return 401/403 for unauthenticated access to protected endpoints.",
+                ))
+                logger.warning(f"Authentication not enforced at {target.url}")
+
         except Exception as e:
             logger.debug(f"Error testing missing auth: {str(e)}")
-        
+
         return vulns
     
     def _test_session_management(self, target: Target) -> List[Vulnerability]:

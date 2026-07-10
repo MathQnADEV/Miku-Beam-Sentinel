@@ -57,7 +57,8 @@ class FakeSession:
         if self._handler is not None:
             custom = self._handler(method, url, **kwargs)
             if custom is not None:
-                return custom
+                # A handler may return a ready FakeResponse or a dict of kwargs.
+                return FakeResponse(**custom) if isinstance(custom, dict) else custom
         return FakeResponse(self._text, self._status, dict(self._headers), cookies=dict(self._cookies))
 
     def get(self, url, **kw):

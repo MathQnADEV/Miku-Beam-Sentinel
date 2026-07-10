@@ -26,22 +26,32 @@ class RateLimitScanner(BaseScanner):
             # Send multiple rapid requests
             num_requests = 20
             successful_requests = 0
-            
+            rate_limited = False
+
             for i in range(num_requests):
                 response = self.session.get(target.url, timeout=5)
+                if response.status_code in (429, 503):
+                    rate_limited = True
+                    break
                 if response.status_code == 200:
                     successful_requests += 1
-            
-            # If most requests succeeded, rate limiting likely missing
-            if successful_requests >= num_requests * 0.9:
+
+            # 20 requests is nowhere near enough to *prove* rate limiting is absent, so
+            # this is reported as low-confidence INFO and only when we never saw a 429/503.
+            if not rate_limited and successful_requests >= num_requests * 0.9:
                 vulnerabilities.append(Vulnerability(
-                    name="Missing Rate Limiting",
-                    severity="MEDIUM",
-                    description=f"No rate limiting detected. {successful_requests}/{num_requests} requests succeeded",
-                    evidence=f"Sent {num_requests} rapid requests, all succeeded",
-                    url=target.url
+                    name="No Rate Limiting Observed",
+                    severity="INFO",
+                    description=(
+                        f"No rate limiting (HTTP 429/503) was triggered within {num_requests} rapid "
+                        "requests. Informational and NOT conclusive — confirm with a proper load test "
+                        "against authentication or other sensitive endpoints."
+                    ),
+                    evidence=f"{successful_requests}/{num_requests} rapid requests returned 200; no 429/503 seen.",
+                    url=target.url,
+                    recommendation="Apply rate limiting / throttling to authentication and expensive endpoints.",
                 ))
-                    
+
         except Exception as e:
             logger.debug(f"Error testing rate limiting: {e}")
         

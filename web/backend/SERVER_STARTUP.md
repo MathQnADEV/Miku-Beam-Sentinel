@@ -1,4 +1,4 @@
-# Cerberus Sentinel - Server Startup Guide
+# Miku Beam Sentinel - Server Startup Guide
 
 ## Running the Backend with WebSocket Support
 

@@ -1,19 +1,19 @@
 <div align="center">
 
-# 🛡️ Cerberus API Sentinel
+# 🛡️ Miku Beam Sentinel
 
-### Professional-Grade API Security Scanner with Nikto-Level Vulnerability Detection
+### Reconnaissance-First API & Web Security Scanner
 
-[![GitHub Stars](https://img.shields.io/github/stars/CerberusMrX/Cerberus-API-Sentinel?style=social)](https://github.com/CerberusMrX/Cerberus-API-Sentinel/stargazers)
-[![GitHub Forks](https://img.shields.io/github/forks/CerberusMrX/Cerberus-API-Sentinel?style=social)](https://github.com/CerberusMrX/Cerberus-API-Sentinel/network/members)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![Django](https://img.shields.io/badge/django-5.x-092E20.svg)](https://www.djangoproject.com/)
+[![React](https://img.shields.io/badge/react-18-61DAFB.svg)](https://react.dev/)
+[![Status](https://img.shields.io/badge/status-active%20development-orange.svg)](#-project-status)
 
-[Features](#-features) • [Installation](#-installation) • [Usage](#-usage) • [Screenshots](#-screenshots) • [Documentation](#-documentation)
+[Features](#-key-features) • [Installation](#-installation) • [Usage](#-usage-examples) • [Architecture](#-architecture) • [Roadmap](#-roadmap) • [Disclaimer](#-security-disclaimer)
 
-![Cerberus Banner](.github/assets/banner.png)
-*Professional reconnaissance-first penetration testing methodology*
+**Map the attack surface first, then test what actually exists.**
+Python scanning engine · Django + Channels backend · React real-time dashboard.
 
 </div>
 
@@ -22,216 +22,232 @@
 ## 📋 Table of Contents
 
 - [Overview](#-overview)
+- [Project Status](#-project-status)
 - [Key Features](#-key-features)
-- [Professional Scan Methodology](#-professional-scan-methodology)
+- [Scan Methodology](#-scan-methodology)
 - [Installation](#-installation)
 - [Quick Start](#-quick-start)
 - [Usage Examples](#-usage-examples)
 - [Screenshots](#-screenshots)
 - [Architecture](#-architecture)
 - [Technology Stack](#-technology-stack)
+- [Known Limitations](#-known-limitations)
+- [Roadmap](#-roadmap)
 - [Contributing](#-contributing)
 - [Security Disclaimer](#-security-disclaimer)
-- [License](#-license)
-- [Author](#-author)
+- [License & Attribution](#-license--attribution)
 
 ---
 
 ## 🔍 Overview
 
-**Cerberus API Sentinel** is an enterprise-grade API security testing framework that follows professional penetration testing methodology. Built with a **reconnaissance-first approach**, it comprehensively maps the attack surface before executing targeted vulnerability scans.
+**Miku Beam Sentinel** is an API/web security testing framework built around a
+**reconnaissance-first** workflow. Instead of blindly firing payloads at a base
+URL, the goal is to first map the attack surface — open ports, technology stack,
+subdomains, directories, and crawlable URLs — and then run targeted vulnerability
+checks against what was discovered.
 
-Unlike traditional scanners that blindly test endpoints, Cerberus intelligently:
-- 🔎 **Discovers** the complete attack surface (ports, subdomains, directories, tech stack)
-- 🎯 **Selects** scanners based on discovered technologies
-- 🚀 **Executes** Nikto-level comprehensive payload testing
-- 📊 **Reports** findings with detailed POCs and remediation advice
+The project ships two interfaces over a shared Python engine:
 
-### Why Cerberus?
+- 🖥️ **Web UI** — a React dashboard with live reconnaissance and scan progress streamed over WebSockets.
+- 💻 **CLI** — a scriptable command-line runner suitable for automation and CI.
 
-- ✅ **Professional Methodology**: Follows industry-standard reconnaissance → testing → reporting workflow
-- ✅ **Comprehensive Coverage**: 23 vulnerability scanners covering OWASP API Top 10 and beyond
-- ✅ **Nikto-Level Payloads**: 200+ SQL injection, 150+ XSS, 75+ SSRF payloads
-- ✅ **Smart Detection**: Automatically selects relevant scanners based on tech stack
-- ✅ **Dual Interface**: Modern web UI and powerful CLI for automation
-- ✅ **Real-Time Updates**: Live reconnaissance stats and scan progress via WebSockets
-- ✅ **Parallel Execution**: 20-30 parallel workers for rapid reconnaissance
+> **Note on the reconnaissance-first design:** the recon → scan handoff is the
+> project's core idea and is still being fully wired up. See
+> [Known Limitations](#-known-limitations) for an honest picture of what already
+> works end-to-end versus what is on the [roadmap](#-roadmap).
+
+### Why this project?
+
+- ✅ **Clean, modular engine** — every recon source and every scanner is an independent, swappable module with a consistent `scan()` / callback contract.
+- ✅ **Correct concurrency** — parallel port/subdomain/directory discovery via `ThreadPoolExecutor`, results collected on the main thread.
+- ✅ **Real-time UX** — reconnaissance stats and payload activity streamed live to the browser.
+- ✅ **Dual interface** — the same engine drives both the web app and the CLI.
+- ✅ **Broad coverage surface** — 23 scanner modules spanning the OWASP API Top 10 and common web classes.
+
+---
+
+## 🚦 Project Status
+
+Miku Beam Sentinel is an **actively developed prototype**, not yet a production
+security product. It is a great learning and hacking-lab tool and a solid base to
+build on. Being upfront about maturity:
+
+| Area | State |
+|------|-------|
+| Reconnaissance engine (ports, tech, subdomains, dirs, crawl) | ✅ Working |
+| Real-time web dashboard + WebSocket streaming | ✅ Working |
+| CLI scan runner + JSON/HTML/Markdown reports | ✅ Working |
+| Detection soundness (false-positive reduction, baselines, OAST) | 🚧 In progress |
+| Recon results driving scanner selection & endpoint testing | 🚧 In progress |
+| Async task queue, authentication, production hardening | 🗺️ Planned |
+
+If you are evaluating findings for a real engagement, treat results as **leads to
+verify manually** until the detection-hardening milestones on the
+[roadmap](#-roadmap) land.
 
 ---
 
 ## ✨ Key Features
 
-### 🎯 Reconnaissance Phase (Professional Attack Surface Mapping)
+### 🎯 Reconnaissance Phase — Attack Surface Mapping
+
 <table>
 <tr>
 <td width="50%">
 
 **🔌 Port Scanning**
-- 20 parallel workers
-- Identifies open services
-- Discovers hidden endpoints
+- Parallel workers (`ThreadPoolExecutor`)
+- Identifies common open services
+- Feeds the live dashboard
 
 **🔍 Technology Detection**
-- Server fingerprinting
-- Framework identification
-- Database inference
-- Frontend detection
+- Server / header fingerprinting
+- Framework & frontend hints
+- Backend/database inference
 
 </td>
 <td width="50%">
 
 **🌐 Subdomain Enumeration**
-- 30 parallel DNS queries
-- 50+ common patterns
-- Real-time discovery
+- Parallel DNS resolution
+- Common-pattern wordlist
+- Streamed as discovered
 
 **📂 Directory Discovery**
-- 80+ common paths
-- Admin panels
-- API endpoints
-- Sensitive files
+- Common paths, admin panels, API endpoints
+- Status-code aware
+- Streamed as discovered
 
 </td>
 </tr>
 </table>
 
-### 🛡️ Vulnerability Scanning (23 Professional Scanners)
+### 🛡️ Vulnerability Scanners (23 modules)
 
 <details>
-<summary><b>🔴 Injection Attacks</b></summary>
+<summary><b>🔴 Injection</b></summary>
 
-- **SQL Injection** ⭐ *Nikto-Level: 200+ payloads*
-  - Union-based, Time-based, Boolean-based, Error-based
-  - All databases: MySQL, PostgreSQL, MSSQL, Oracle, SQLite
-  - WAF bypass techniques, encoding tricks
-  
-- **NoSQL Injection** - MongoDB, Redis, Cassandra, CouchDB
-- **Command Injection** - OS command execution
-- **LDAP Injection** - Directory service attacks
-- **XPath Injection** - XML query manipulation
-- **XML Injection** - External entity attacks
+- **SQL Injection** — 140+ categorized payloads (union / time / boolean / error-based), multi-DB signatures
+- **NoSQL Injection** — MongoDB / Redis / Cassandra / CouchDB operators
+- **Command Injection** — OS command execution (baseline + timing double-confirm)
+- **LDAP / XPath / XML Injection**
 
 </details>
 
 <details>
 <summary><b>🟠 Cross-Site Scripting (XSS)</b></summary>
 
-⭐ **Nikto-Level: 150+ payloads**
-- Reflected, Stored, DOM-based XSS
-- Framework-specific (Angular, React, Vue)
-- Filter evasion, Mutation XSS
-- Context-aware testing
+- 110+ payloads — reflected / stored / DOM-oriented, framework and filter-evasion variants
+- (Context-aware confirmation is on the [roadmap](#-roadmap).)
 
 </details>
 
 <details>
-<summary><b>🟡 Server-Side Attacks</b></summary>
+<summary><b>🟡 Server-Side</b></summary>
 
-- **SSRF** ⭐ *Nikto-Level: 75+ payloads* - Cloud metadata, internal network
-- **SSTI** - Template injection (Jinja2, Twig, Freemarker)
-- **XXE** - XML External Entity attacks
+- **SSRF** — 50+ payloads incl. cloud-metadata & internal-network targets
+- **SSTI** — Jinja2 / Twig / Freemarker style template injection
+- **XXE** — XML External Entity attacks
 
 </details>
 
 <details>
 <summary><b>🟢 Authentication & Authorization</b></summary>
 
-- **Broken Authentication** - Weak credentials, session management
-- **BOLA/IDOR** - Object-level authorization flaws
-- **Broken Access Control** - Privilege escalation
-- **JWT Vulnerabilities** - Token manipulation, signature bypass
-- **OAuth Misconfigurations** - Redirect URI attacks
+- **Broken Authentication**, **BOLA/IDOR**, **Broken Access Control**
+- **JWT** manipulation checks, **OAuth** misconfiguration checks
 
 </details>
 
 <details>
-<summary><b>🔵 API-Specific Vulnerabilities</b></summary>
+<summary><b>🔵 API-Specific</b></summary>
 
-- **GraphQL Injection** - Query depth, introspection, batching
-- **HTTP Parameter Pollution** - HPP attacks
-- **Mass Assignment** - Object property injection
-- **Rate Limiting Issues** - Brute force protection bypass
+- **GraphQL** (introspection / depth / batching), **HTTP Parameter Pollution**
+- **Mass Assignment**, **Rate-Limiting** checks
 
 </details>
 
 <details>
-<summary><b>🟣 Security Misconfigurations</b></summary>
+<summary><b>🟣 Misconfiguration & Exposure</b></summary>
 
-- **Security Headers** - Missing CSP, HSTS, X-Frame-Options
-- **Sensitive Data Exposure** - PII leakage, emails, API keys
-- **Business Logic Flaws** - Payment bypass, workflow manipulation
-- **Insufficient Logging** - Missing audit trails
+- **Security Headers**, **Sensitive Data Exposure**, **Business Logic**, **Insufficient Logging**
 
 </details>
+
+### 🔌 Optional External Engine
+
+- **Nuclei** integration (`engine/integrations/nuclei_runner.py`) — automatically used if `nuclei` is found on `PATH`, skipped otherwise.
 
 ---
 
-## 🔄 Professional Scan Methodology
+## 🔄 Scan Methodology
 
 ```mermaid
 graph LR
     A[Target URL] --> B[Phase 1: Reconnaissance]
-    B --> C[Phase 2: Smart Scanner Selection]
+    B --> C[Phase 2: Scanner Selection]
     C --> D[Phase 3: Targeted Testing]
-    D --> E[Phase 4: Comprehensive Reporting]
-    
-    B --> B1[Port Scanning]
+    D --> E[Phase 4: Reporting]
+
+    B --> B1[Port Scan]
     B --> B2[Tech Detection]
     B --> B3[Subdomain Enum]
     B --> B4[Directory Discovery]
     B --> B5[Web Crawling]
-    
+
     C --> C1{Tech Stack?}
-    C1 -->|MySQL| C2[SQL Scanner]
-    C1 -->|MongoDB| C3[NoSQL Scanner]
+    C1 -->|SQL DB| C2[SQL Scanner]
+    C1 -->|NoSQL| C3[NoSQL Scanner]
     C1 -->|GraphQL| C4[GraphQL Scanner]
-    
-    D --> D1[Test Discovered Endpoints]
-    D --> D2[Test Real Parameters]
-    D --> D3[Comprehensive Payloads]
+
+    D --> D1[Run selected scanners]
+    D --> D2[Stream payload activity]
+    E --> E1[Compile findings + report]
 ```
 
-### Scan Flow Breakdown
-
-| Phase | Progress | Duration | Activities |
-|-------|----------|----------|------------|
-| **🔍 Reconnaissance** | 5-30% | 30-60s | Port scan → Tech detection → Subdomain enum → Directory discovery → Crawling |
-| **🎯 Smart Selection** | 30-35% | 5s | Analyze tech stack → Select relevant scanners → Skip irrelevant tests |
-| **🛡️ Vulnerability Testing** | 35-85% | 1-3 min | Run selected scanners → Test discovered endpoints → Comprehensive payloads |
-| **📊 Reporting** | 85-100% | 10s | Compile results → Generate POCs → Create reports |
+| Phase | Progress | Activities |
+|-------|----------|------------|
+| **🔍 Reconnaissance** | 5–30% | Port scan → Tech detection → Subdomain enum → Directory discovery → Crawling |
+| **🎯 Scanner Selection** | 30–35% | Analyze tech stack → select relevant scanners |
+| **🛡️ Vulnerability Testing** | 35–85% | Run selected scanners, stream payload activity |
+| **📊 Reporting** | 85–100% | Compile results → generate reports |
 
 ---
 
 ## 🚀 Installation
 
 ### Prerequisites
-- **Python** 3.8 or higher
+- **Python** 3.8+
 - **Node.js** 16+ and npm
 - **Git**
 
-### Clone Repository
+### Clone
 ```bash
-git clone https://github.com/CerberusMrX/Cerberus-API-Sentinel.git
-cd Cerberus-API-Sentinel
+git clone https://github.com/MathQnADEV/Miku-Beam-Sentinel.git
+cd Miku-Beam-Sentinel
 ```
 
-### Backend Setup
+### Backend
 ```bash
-# Create virtual environment
+# Virtual environment
 python3 -m venv venv
-source venv/bin/activate  # Linux/Mac
-# venv\Scripts\activate   # Windows
+source venv/bin/activate        # Linux/Mac
+# venv\Scripts\activate         # Windows
 
-# Install dependencies
+# Dependencies
 pip install -r requirements.txt
 
-# Setup database
+# Configure environment (copy the example and edit as needed)
+cp web/backend/.env.example web/backend/.env
+
+# Database (SQLite is fine for local use)
 cd web/backend
 python manage.py migrate
 cd ../..
 ```
 
-### Frontend Setup
+### Frontend
 ```bash
 cd web/frontend
 npm install
@@ -242,310 +258,232 @@ cd ../..
 
 ## ⚡ Quick Start
 
-### Option 1: Web Interface 🖥️
+### Option 1 — Web Interface 🖥️
 
-**Terminal 1 - Start Backend:**
+WebSockets require an **ASGI** server (Daphne / Channels), so start the backend
+with Daphne rather than `runserver`:
+
+**Terminal 1 — Backend**
 ```bash
 cd web/backend
 source ../../venv/bin/activate
-./start_server.sh
+daphne -b 127.0.0.1 -p 8001 config.asgi:application
 ```
 
-**Terminal 2 - Start Frontend:**
+**Terminal 2 — Frontend**
 ```bash
 cd web/frontend
 npm run dev
 ```
 
-**Access:** http://localhost:5173
+**Open:** http://localhost:5173 (the frontend talks to the backend on port `8001`).
 
-### Option 2: CLI Interface 💻
+### Option 2 — CLI 💻
 
-**Full Scan (All 23 Scanners):**
 ```bash
 source venv/bin/activate
+
+# Full scan
 python -m cli.main -u https://api.target.com --scan-all
-```
 
-**Targeted Scan (Specific Scanners):**
-```bash
+# Targeted scan
+python -m cli.main -u https://api.target.com --scan-sqli --scan-xss --scan-ssrf
+
+# With authentication
 python -m cli.main -u https://api.target.com \
-  --scan-sqli \
-  --scan-xss \
-  --scan-ssrf
+  --auth-type bearer --auth-token "eyJhbGciOi..." --scan-all
+
+# Reports
+python -m cli.main -u https://api.target.com --scan-all \
+  --report-json report.json --report-html report.html
 ```
-
-**With Authentication:**
-```bash
-python -m cli.main -u https://api.target.com \
-  --auth-type bearer \
-  --auth-token "eyJhbGciOiJIUzI1NiIs..." \
-  --scan-all
-```
-
-**Generate Reports:**
-```bash
-python -m cli.main -u https://api.target.com \
-  --scan-all \
-  --report-json report.json \
-  --report-html report.html
-```
-
----
-
-## 📸 Screenshots
-
-### Web Application Interface
-
-#### 1. Dashboard Overview
-<img width="1912" height="1037" alt="dashboard" src="https://github.com/user-attachments/assets/96f0b0fc-e08f-4d00-b8ec-929ceab64f07" />
-
-*Project dashboard with real-time scan status*
-
-#### 2. Reconnaissance Phase - Live Discovery
-<img width="1912" height="1037" alt="scan " src="https://github.com/user-attachments/assets/11a6bfff-255a-49a1-9101-cc0c73909b00" />
-
-*Real-time attack surface mapping: ports, subdomains, directories, technologies*
-
-#### 3. Vulnerability Scanning - Payload Testing
-<img width="1912" height="1037" alt="scan config" src="https://github.com/user-attachments/assets/e1e38434-7241-465f-81a3-5d49d63e2b23" />
-
-*Live payload execution with WebSocket updates*
-
-#### 4. Scan Results
-<img width="1912" height="1037" alt="REP2" src="https://github.com/user-attachments/assets/0245e980-df75-4236-8bf6-16a6ea40fdee" />
-
-*Comprehensive vulnerability report with severity ratings*
-
-### CLI Interface
-
-#### 5. Terminal Scan Execution
-<img width="1920" height="1045" alt="TM1" src="https://github.com/user-attachments/assets/5727eb7b-0e26-434a-8b1f-546654c2798c" />
-
-*Command-line professional scan with real-time output*
-
-#### 6. Vulnerability Report
-<img width="1920" height="1045" alt="TM2" src="https://github.com/user-attachments/assets/a58375f2-634c-487b-83d3-cf925bbf4641" />
-
-*Terminal-based vulnerability findings with color-coded severity*
-
----
-
-## 🏗️ Architecture
-
-```
-cerberus-sentinel/
-├── engine/                    # Core Scanning Engine
-│   ├── core/                 # Reconnaissance Modules
-│   │   ├── port_scanner.py  # Parallel port scanning
-│   │   ├── tech_detector.py # Framework fingerprinting
-│   │   ├── subdomain_enum.py # DNS-based enumeration
-│   │   ├── dir_discovery.py # Directory brute-forcing
-│   │   ├── crawler.py       # Web crawling
-│   │   ├── target.py        # Target abstraction
-│   │   └── auth.py          # Authentication handlers
-│   │
-│   ├── scanners/            # 23 Vulnerability Scanners
-│   │   ├── injection.py     # SQL Injection (200+ payloads)
-│   │   ├── xss.py          # XSS (150+ payloads)
-│   │   ├── ssrf.py         # SSRF (75+ payloads)
-│   │   ├── nosql.py        # NoSQL Injection
-│   │   ├── graphql.py      # GraphQL vulnerabilities
-│   │   ├── jwt.py          # JWT attacks
-│   │   └── ... (17 more)
-│   │
-│   └── reporting/           # Report Generators
-│       ├── reporter.py     # JSON/HTML generation
-│       └── templates/      # Report templates
-│
-├── cli/                     # Terminal Interface
-│   └── main.py            # CLI entry point
-│
-├── web/                     # Web Application
-│   ├── backend/            # Django REST + WebSockets
-│   │   ├── projects/      # Project management
-│   │   ├── scans/         # Scan orchestration
-│   │   └── config/        # Django configuration
-│   │
-│   └── frontend/           # React Application
-│       ├── src/
-│       │   ├── components/
-│       │   │   └── ScanProgress.jsx  # Real-time dashboard
-│       │   └── pages/
-│       │       ├── Projects.jsx
-│       │       └── Reports.jsx
-│       └── package.json
-│
-├── requirements.txt        # Python dependencies
-└── README.md              # This file
-```
-
----
-
-## 🛠️ Technology Stack
-
-### Backend
-- **Python 3.8+** - Core language
-- **Django 5.0** - Web framework
-- **Django REST Framework** - API endpoints
-- **Daphne** - ASGI server for WebSockets
-- **Channels** - WebSocket support
-- **Requests** - HTTP client
-- **BeautifulSoup4** - HTML parsing
-
-### Frontend
-- **React 18** - UI framework
-- **Vite** - Build tool
-- **TailwindCSS** - Styling
-- **Lucide React** - Icons
-- **Axios** - HTTP client
-
-### Reconnaissance
-- **Socket** - Port scanning
-- **DNS queries** - Subdomain enumeration
-- **Parallel workers** - ThreadPoolExecutor
 
 ---
 
 ## 📚 Usage Examples
 
-### Example 1: Full Professional Scan
-
-```python
-# Professional reconnaissance-first scan
-python -m cli.main -u https://api.production.com --scan-all
-
-# Output:
-# Phase 1: Port Scanning... Found 3 open ports
-# Phase 2: Technology Detection... Detected: Nginx, Node.js, MongoDB
-# Phase 3: Subdomain Enumeration... Found 8 subdomains
-# Phase 4: Directory Discovery... Found 23 paths
-# Phase 5: Web Crawling... Crawled 45 URLs
-#
-# Attack Surface: 3 ports, 8 subdomains, 23 paths, 45 URLs
-#
-# Running NoSQLInjectionScanner (MongoDB detected)...
-# Running XSSScanner...
-# Running SSRFScanner...
-# [12 scanners selected based on tech stack]
-```
-
-### Example 2: Targeted API Testing
-
-```python
-# Test specific vulnerabilities with authentication
-python -m cli.main \
-  -u https://api.staging.com/v2 \
-  --auth-type bearer \
-  --auth-token "eyJhbGc..." \
-  --scan-sqli \
-  --scan-nosql \
-  --scan-graphql \
-  --report-html api_security_report.html
-```
-
-### Example 3: Automation & CI/CD Integration
-
+### CI/CD gate
 ```bash
 #!/bin/bash
-# Automated security scan in CI/CD pipeline
+python -m cli.main -u "$TARGET_URL" --scan-all --report-json scan_results.json
 
-python -m cli.main \
-  -u $TARGET_URL \
-  --scan-all \
-  --report-json scan_results.json
-
-# Parse results
-CRITICAL=$(jq '.vulnerabilities[] | select(.severity=="CRITICAL")' scan_results.json | wc -l)
-
-if [ $CRITICAL -gt 0 ]; then
-  echo "❌ Found $CRITICAL critical vulnerabilities. Failing build."
+CRITICAL=$(jq '[.vulnerabilities[] | select(.severity=="CRITICAL")] | length' scan_results.json)
+if [ "$CRITICAL" -gt 0 ]; then
+  echo "❌ Found $CRITICAL critical findings. Failing build."
   exit 1
 fi
 ```
 
 ---
 
-## 🔒 Security Disclaimer
+## 📸 Screenshots
 
-### ⚠️ **IMPORTANT: Legal and Ethical Use Only**
+> The screenshots below come from a running instance. Replace them with your own after deploying.
 
-This tool is designed for **authorized security testing only**. You must:
+#### Dashboard
+<img width="1912" alt="dashboard" src="https://github.com/user-attachments/assets/96f0b0fc-e08f-4d00-b8ec-929ceab64f07" />
 
-✅ **DO:**
-- Test systems you own
-- Obtain explicit written permission before testing
-- Follow responsible disclosure practices
-- Comply with all applicable laws and regulations
-- Use in controlled test environments
+#### Reconnaissance — Live Discovery
+<img width="1912" alt="reconnaissance" src="https://github.com/user-attachments/assets/11a6bfff-255a-49a1-9101-cc0c73909b00" />
 
-❌ **DON'T:**
-- Scan systems without permission
-- Use for malicious purposes
-- Test production systems without approval
-- Violate computer fraud laws
-- Ignore scope limitations
+#### Vulnerability Scanning — Live Payloads
+<img width="1912" alt="scanning" src="https://github.com/user-attachments/assets/e1e38434-7241-465f-81a3-5d49d63e2b23" />
 
-**Legal Notice**: Unauthorized access to computer systems is illegal. The authors and contributors are not responsible for misuse of this tool. By using Cerberus API Sentinel, you agree to use it ethically and legally.
+#### Results
+<img width="1912" alt="results" src="https://github.com/user-attachments/assets/0245e980-df75-4236-8bf6-16a6ea40fdee" />
+
+#### CLI
+<img width="1920" alt="cli-scan" src="https://github.com/user-attachments/assets/5727eb7b-0e26-434a-8b1f-546654c2798c" />
+
+---
+
+## 🏗️ Architecture
+
+```
+Miku-Beam-Sentinel/
+├── engine/                     # Core scanning engine (shared by CLI + web)
+│   ├── core/                   # Reconnaissance modules
+│   │   ├── target.py           # Target abstraction
+│   │   ├── profiler.py         # Orchestrates the recon phase
+│   │   ├── port_scanner.py     # Parallel port scanning
+│   │   ├── tech_detector.py    # Fingerprinting
+│   │   ├── subdomain_enum.py   # DNS-based enumeration
+│   │   ├── dir_discovery.py    # Directory/file discovery
+│   │   ├── crawler.py          # Web crawling
+│   │   └── auth.py             # Authentication handlers
+│   ├── scanners/               # 23 vulnerability scanner modules
+│   │   ├── base.py             # BaseScanner + Vulnerability
+│   │   ├── injection.py        # SQL Injection
+│   │   ├── xss.py  ssrf.py  nosql.py  cmdi.py  ssti.py  xxe.py ...
+│   │   └── jwt.py  oauth.py  bola.py  access_control.py ...
+│   ├── integrations/
+│   │   └── nuclei_runner.py    # Optional external Nuclei engine
+│   └── reporting/
+│       └── reporter.py         # JSON / HTML / Markdown reports
+│
+├── cli/
+│   └── main.py                 # CLI entry point
+│
+├── web/
+│   ├── backend/                # Django REST + Channels (ASGI/WebSockets)
+│   │   ├── config/             # Settings, ASGI, URLs
+│   │   ├── projects/           # Projects + scan executor
+│   │   ├── scans/              # Scans, vulnerabilities, WS consumers
+│   │   └── users/              # Accounts
+│   └── frontend/               # React + Vite + TailwindCSS
+│       └── src/
+│           ├── components/     # ScanProgress (live), modals, UI
+│           ├── pages/          # Projects, ScanConfig, Reports, ...
+│           └── services/api.js # API client
+│
+├── requirements.txt
+├── DEPLOYMENT.md
+└── README.md
+```
+
+---
+
+## 🛠️ Technology Stack
+
+**Engine:** Python 3, Requests, BeautifulSoup4, `ThreadPoolExecutor`, socket/DNS.
+**Backend:** Django 5, Django REST Framework, Channels + Daphne (ASGI/WebSockets).
+**Frontend:** React 18, Vite, TailwindCSS, Lucide, Axios.
+**Optional:** Nuclei (external engine, auto-detected).
+
+---
+
+## ⚠️ Known Limitations
+
+Being transparent so you can use the tool wisely and contributors know where to help:
+
+- **False positives.** Several scanners currently flag on weak signals (payload
+  reflection, generic error strings, single-shot timing). Findings should be
+  manually verified. Hardening these with baselines / control requests / OAST is
+  the top [roadmap](#-roadmap) priority. `engine/scanners/cmdi.py` already follows
+  the intended stricter pattern and is the template for the rest.
+- **Recon → scan handoff is partial.** Discovered URLs/directories are not yet fed
+  into every scanner (scanners mostly test the base URL with a guessed parameter
+  list), and the web UI's smart selection currently reaches a subset of the 23
+  modules. Unifying this is in progress.
+- **Not hardened for exposure.** The dev build runs with `DEBUG=True` and open API
+  permissions, and performs server-side fetches of user-supplied target URLs. Run
+  it **locally / in a lab**, not on a public host, until the hardening milestones land.
+
+---
+
+## 🗺️ Roadmap
+
+**Phase 1 — Cleanup & quick wins**
+- Repo hygiene for publication, fix the `--gui` launcher to use Daphne, escape HTML report output, remove dead code paths.
+
+**Phase 2 — Detection soundness & architecture**
+- Refactor every scanner to the `cmdi.py` pattern (baseline + control + differential), removing circular/weak detections.
+- Unify recon → scanning so discovered endpoints and tech drive what gets tested; make all 23 modules reachable.
+- Real async task queue (Celery/Redis), Redis channel layer, consistent auth, SSRF guardrails.
+
+**Phase 3 — Ambitious features**
+- Built-in **OAST/interaction server** for reliable blind SSRF/XXE/RCE verification.
+- **Authenticated scanning** (login recorder / session handling).
+- **Plugin API** for scanners + declarative registry, CI + Docker (ASGI), richer reporting.
+- Passive discovery (Certificate Transparency), OpenAPI/Swagger & Postman import.
+
+See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the detailed breakdown.
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions are welcome — especially detection-soundness improvements.
 
-### How to Contribute
-
-1. Fork the repository
+1. Fork the repo
 2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-### Development Setup
+3. Commit your changes
+4. Push and open a Pull Request
 
 ```bash
-# Install development dependencies
-pip install -r requirements-dev.txt
-
 # Run tests
 pytest
 
-# Code formatting
-black .
-flake8 .
+# Format / lint (frontend)
+cd web/frontend && npm run lint
 ```
 
 ---
 
-## 📄 License
+## 🔒 Security Disclaimer
 
-This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+### ⚠️ Legal and Ethical Use Only
+
+This tool is for **authorized security testing only**.
+
+✅ **DO:** test systems you own; get explicit written permission; follow responsible disclosure; comply with all applicable laws; use controlled/lab environments.
+
+❌ **DON'T:** scan systems without permission; use for malicious purposes; test production systems without approval; violate computer-fraud laws; ignore scope limits.
+
+Unauthorized access to computer systems is illegal. The authors and contributors
+are **not responsible for misuse**. By using Miku Beam Sentinel you agree to use it
+ethically and legally.
 
 ---
 
-## 👨‍💻 Author
+## 📄 License & Attribution
 
-**Sudeepa Wanigarathna**
+Licensed under the **MIT License** — see [LICENSE](LICENSE).
 
-- GitHub: [@CerberusMrX](https://github.com/CerberusMrX)
+**Miku Beam Sentinel** is maintained by **MathQnADEV**.
+
+This project is a modified fork of **Cerberus API Sentinel**, originally created by
+**Sudeepa Wanigarathna** ([@CerberusMrX](https://github.com/CerberusMrX)) and
+released under the MIT License. Full credit for the original work goes to the
+original author; see [LICENSE](LICENSE) for details.
 
 ---
 
 ## 🙏 Acknowledgments
 
-- OWASP for comprehensive vulnerability classification
-- Security research community for payload techniques
+- OWASP, for vulnerability classification references
+- The security research community, for payload techniques
 - Open-source contributors
-
----
-
-## 📊 Project Stats
-
-![GitHub last commit](https://img.shields.io/github/last-commit/CerberusMrX/Cerberus-API-Sentinel)
-![GitHub issues](https://img.shields.io/github/issues/CerberusMrX/Cerberus-API-Sentinel)
-![GitHub pull requests](https://img.shields.io/github/issues-pr/CerberusMrX/Cerberus-API-Sentinel)
-![Code size](https://img.shields.io/github/languages/code-size/CerberusMrX/Cerberus-API-Sentinel)
 
 ---
 
@@ -553,8 +491,8 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 ### ⭐ Star this repository if you find it useful!
 
-**Built with ❤️ for the security community**
+**Built for the security community** ♪
 
-[Report Bug](https://github.com/CerberusMrX/Cerberus-API-Sentinel/issues) • [Request Feature](https://github.com/CerberusMrX/Cerberus-API-Sentinel/issues) • [Documentation](https://github.com/CerberusMrX/Cerberus-API-Sentinel/wiki)
+[Report Bug](https://github.com/MathQnADEV/Miku-Beam-Sentinel/issues) • [Request Feature](https://github.com/MathQnADEV/Miku-Beam-Sentinel/issues)
 
 </div>

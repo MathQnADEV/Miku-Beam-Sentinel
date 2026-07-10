@@ -1,7 +1,7 @@
 #!/bin/bash
-# Startup script for Cerberus Sentinel Backend with WebSocket support
+# Startup script for Miku Beam Sentinel Backend with WebSocket support
 
-echo "Starting Cerberus Sentinel Backend with Daphne..."
+echo "Starting Miku Beam Sentinel Backend with Daphne..."
 
 # Get the directory of this script
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -16,6 +16,6 @@ cd "$DIR"
 echo "Running database migrations..."
 python manage.py migrate
 
-# Start Daphne server with WebSocket support
-echo "Starting Daphne server on 0.0.0.0:8000..."
-daphne -b 0.0.0.0 -p 8000 config.asgi:application
+# Start Daphne server with WebSocket support (frontend expects port 8001)
+echo "Starting Daphne server on 0.0.0.0:8001..."
+daphne -b 0.0.0.0 -p 8001 config.asgi:application

@@ -232,6 +232,7 @@ class XSSScanner(BaseScanner):
                         )
                         vulnerabilities.append(vuln)
                         logger.warning(f"XSS vulnerability found at {test_url}")
+                        break  # one finding per parameter is enough (dedupe)
                         
                 except Exception as e:
                     logger.debug(f"Error testing XSS payload {payload[:50]}... on param {param}: {str(e)}")

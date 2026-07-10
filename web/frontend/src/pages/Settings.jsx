@@ -3,20 +3,23 @@ import { Shield, Code, Terminal } from 'lucide-react';
 
 const Settings = () => {
     return (
-        <div className="p-8 max-w-4xl mx-auto">
-            <h2 className="text-2xl font-bold mb-6">About Cerberus Sentinel</h2>
+        <div className="p-4 md:p-8 max-w-4xl mx-auto">
+            <h2 className="text-2xl font-bold mb-6">About Miku Beam Sentinel</h2>
 
             <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 mb-6">
                 <div className="flex items-center gap-4 mb-4">
                     <Shield className="w-12 h-12 text-blue-600" />
                     <div>
-                        <h3 className="text-xl font-semibold">Cerberus API Sentinel</h3>
+                        <h3 className="text-xl font-semibold">Miku Beam Sentinel</h3>
                         <p className="text-gray-600">Professional API Security Scanner v1.0</p>
                     </div>
                 </div>
                 <p className="text-gray-700 mb-4">
-                    Cerberus Sentinel is a comprehensive offensive security tool designed for API penetration testing.
+                    Miku Beam Sentinel is a comprehensive offensive security tool designed for API penetration testing.
                     It combines a powerful CLI scanner with a modern web dashboard for managing assessments.
+                </p>
+                <p className="text-sm text-gray-500 italic">
+                    Maintained by MathQnADEV. Based on Cerberus API Sentinel by Sudeepa Wanigarathna (@CerberusMrX), MIT License.
                 </p>
             </div>
 
@@ -58,9 +61,9 @@ const Settings = () => {
                 </h3>
                 <div className="bg-gray-900 text-white p-4 rounded font-mono text-sm">
                     <div className="mb-2"># Run a scan</div>
-                    <div className="text-green-400">cerberus -u https://api.target.com --scan-all</div>
+                    <div className="text-green-400">miku-beam -u https://api.target.com --scan-all</div>
                     <div className="mt-4 mb-2"># Launch GUI mode</div>
-                    <div className="text-green-400">cerberus --gui</div>
+                    <div className="text-green-400">miku-beam --gui</div>
                 </div>
             </div>
         </div>

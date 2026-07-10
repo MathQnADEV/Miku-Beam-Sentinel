@@ -1,3 +1,8 @@
+# Secrets — never commit real environment files
+.env
+**/.env
+!**/.env.example
+
 # Python
 __pycache__/
 *.py[cod]
@@ -31,9 +36,10 @@ yarn-error.log*
 dist/
 build/
 
-# IDE
+# IDE / tooling
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~
@@ -43,9 +49,12 @@ build/
 .gemini/
 
 # Reports & Scans
+# Anchor to repo root so these only ignore generated report outputs — the previous
+# unanchored *.html / *.json swallowed source files like web/frontend/index.html.
 reports/
-*.html
-*.json
+/report*.html
+/report*.json
+/scan_results*.json
 
 # Temporary files
 *.tmp

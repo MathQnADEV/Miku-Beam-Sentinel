@@ -315,9 +315,12 @@ class SQLInjectionScanner(BaseScanner):
         total_tests = len(self.PAYLOADS) * len(params)
         
         for param in params:
+            param_found = False  # report at most one finding per parameter (dedupe)
             for payload in self.PAYLOADS:
+                if param_found:
+                    break
                 payload_count += 1
-                
+
                 if callback:
                     callback(payload)
                 
@@ -347,6 +350,8 @@ class SQLInjectionScanner(BaseScanner):
                             )
                             vulnerabilities.append(vuln)
                             logger.warning(f"SQL Injection found (error-based) at {test_url}")
+                            param_found = True
+                            break
                     
                     # Check for time-based blind injection
                     if "SLEEP" in payload.upper() or "WAITFOR" in payload.upper() or "pg_sleep" in payload or "DBMS_LOCK" in payload:
@@ -362,6 +367,7 @@ class SQLInjectionScanner(BaseScanner):
                             )
                             vulnerabilities.append(vuln)
                             logger.warning(f"SQL Injection found (time-based) at {test_url}")
+                            param_found = True
                     
                 except Exception as e:
                     logger.debug(f"Error testing SQL injection payload {payload} on param {param}: {str(e)}")

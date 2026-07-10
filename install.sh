@@ -1,14 +1,14 @@
 #!/bin/bash
 
-# Cerberus Sentinel - Installation Script
-# Installs dependencies and sets up the 'cerberus' command
+# Miku Beam Sentinel - Installation Script
+# Installs dependencies and sets up the 'miku-beam' command
 
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}[*] Cerberus Sentinel Installer${NC}"
+echo -e "${BLUE}[*] Miku Beam Sentinel Installer${NC}"
 
 # Check for Python 3
 if ! command -v python3 &> /dev/null; then
@@ -53,7 +53,7 @@ python manage.py migrate
 cd ../..
 
 # Create launcher script
-LAUNCHER="$INSTALL_DIR/cerberus"
+LAUNCHER="$INSTALL_DIR/miku-beam"
 echo -e "${BLUE}[*] Creating launcher script at $LAUNCHER...${NC}"
 
 cat > "$LAUNCHER" <<EOF
@@ -65,11 +65,11 @@ fi
 export PYTHONPATH="\$INSTALL_DIR"
 
 if [ "\$1" == "--gui" ]; then
-    echo -e "${GREEN}[*] Launching Cerberus Web Interface...${NC}"
+    echo -e "${GREEN}[*] Launching Miku Beam Sentinel Web Interface...${NC}"
     
-    # Start Backend
+    # Start Backend (ASGI via Daphne on 8001 — required for WebSocket scan stream)
     cd "\$INSTALL_DIR/web/backend"
-    python3 manage.py runserver 0.0.0.0:8000 > /dev/null 2>&1 &
+    daphne -b 0.0.0.0 -p 8001 config.asgi:application > /dev/null 2>&1 &
     BACKEND_PID=\$!
     
     # Start Frontend
@@ -93,8 +93,8 @@ EOF
 chmod +x "$LAUNCHER"
 
 echo -e "${GREEN}[+] Installation complete!${NC}"
-echo -e "${BLUE}[*] To make 'cerberus' accessible globally, run:${NC}"
-echo -e "    sudo ln -s \"$LAUNCHER\" /usr/local/bin/cerberus"
+echo -e "${BLUE}[*] To make 'miku-beam' accessible globally, run:${NC}"
+echo -e "    sudo ln -s \"$LAUNCHER\" /usr/local/bin/miku-beam"
 echo -e "${BLUE}[*] Usage:${NC}"
-echo -e "    cerberus --help"
-echo -e "    cerberus --gui"
+echo -e "    miku-beam --help"
+echo -e "    miku-beam --gui"

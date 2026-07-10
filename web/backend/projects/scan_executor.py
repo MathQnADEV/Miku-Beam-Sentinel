@@ -6,29 +6,6 @@ import logging
 engine_path = os.path.join(os.path.dirname(__file__), '../../..')
 sys.path.insert(0, engine_path)
 
-from engine.scanners.injection import SQLInjectionScanner
-from engine.scanners.xss import XSSScanner
-from engine.scanners.cmdi import CommandInjectionScanner
-from engine.scanners.ssrf import SSRFScanner
-from engine.scanners.bola import BOLAScanner
-from engine.scanners.access_control import BrokenAccessControlScanner
-from engine.scanners.auth import AuthScanner
-from engine.scanners.business_logic import BusinessLogicScanner
-from engine.scanners.data_exposure import SensitiveDataExposureScanner
-from engine.scanners.graphql import GraphQLInjectionScanner
-from engine.scanners.hpp import HTTPParameterPollutionScanner
-from engine.scanners.jwt import JWTScanner
-from engine.scanners.ldap import LDAPInjectionScanner
-from engine.scanners.logging import LoggingScanner
-from engine.scanners.mass_assignment import MassAssignmentScanner
-from engine.scanners.misconfig import SecurityMisconfigurationScanner
-from engine.scanners.nosql import NoSQLInjectionScanner
-from engine.scanners.oauth import OAuthScanner
-from engine.scanners.rate_limit import RateLimitScanner
-from engine.scanners.ssti import SSTIScanner
-from engine.scanners.xml_injection import XMLInjectionScanner
-from engine.scanners.xpath import XPathInjectionScanner
-from engine.scanners.xxe import XXEScanner
 from engine.core.target import Target
 import requests
 
@@ -41,38 +18,10 @@ class ScanExecutor:
     def __init__(self):
         self.session = requests.Session()
         self.session.headers.update({
-            'User-Agent': 'Cerberus-API-Sentinel/1.0'
+            'User-Agent': 'Miku-Beam-Sentinel/1.0'
         })
-        
-        # Initialize available scanners
-        self.scanners = [
-            SQLInjectionScanner(self.session),
-            XSSScanner(self.session),
-            CommandInjectionScanner(self.session),
-            SSRFScanner(self.session),
-            BOLAScanner(self.session),
-            BrokenAccessControlScanner(self.session),
-            AuthScanner(self.session),
-            BusinessLogicScanner(self.session),
-            SensitiveDataExposureScanner(self.session),
-            GraphQLInjectionScanner(self.session),
-            HTTPParameterPollutionScanner(self.session),
-            JWTScanner(self.session),
-            LDAPInjectionScanner(self.session),
-            LoggingScanner(self.session),
-            MassAssignmentScanner(self.session),
-            SecurityMisconfigurationScanner(self.session),
-            NoSQLInjectionScanner(self.session),
-            OAuthScanner(self.session),
-            RateLimitScanner(self.session),
-            SSTIScanner(self.session),
-            XMLInjectionScanner(self.session),
-            XPathInjectionScanner(self.session),
-            XXEScanner(self.session),
-        ]
-        
-        logger.info(f"ScanExecutor initialized with {len(self.scanners)} scanners")
-        
+        logger.info("ScanExecutor initialized")
+
     def _select_scanners(self, tech_stack):
         """
         Smart scanner selection based on discovered technologies
@@ -337,6 +286,32 @@ class ScanExecutor:
                     # Continue with other scanners even if one fails
             
             # =================================================================
+            # PHASE 2.5: EXTERNAL ENGINE — NUCLEI (optional, if installed)
+            # =================================================================
+            try:
+                from engine.integrations.nuclei_runner import run as run_nuclei, is_available as nuclei_available
+                if nuclei_available():
+                    send_update('Scanning', "Running Nuclei templates (external engine)...", 84, {'phase': 'scanning'})
+
+                    def on_nuclei(msg):
+                        async_to_sync(channel_layer.group_send)(group_name, {
+                            'type': 'scan_update',
+                            'data': {'scanner': 'nuclei', 'payload': msg}
+                        })
+
+                    nuclei_vulns = run_nuclei(target.url, timeout=240, callback=on_nuclei)
+                    all_vulnerabilities.extend(nuclei_vulns)
+                    send_update('Scanning', f"Nuclei finished: {len(nuclei_vulns)} findings", 85, {
+                        'vuln_count': len(all_vulnerabilities)
+                    })
+                else:
+                    logger.info("Nuclei not installed on PATH; skipping external engine")
+                    send_update('Scanning', "Nuclei not installed — skipping optional external engine", 85)
+            except Exception as e:
+                logger.error(f"Nuclei stage failed: {e}")
+                send_update('Scanning', "Nuclei stage failed, continuing...", 85)
+
+            # =================================================================
             # PHASE 3: REPORTING (85-100%)
             # =================================================================
             logger.info("=== Starting Reporting Phase ===")
@@ -355,134 +330,13 @@ class ScanExecutor:
                     evidence=vuln.evidence
                 )
 
-            # DEMO MODE: Ensure we match the frontend simulation (2 vulns)
-            # If no real vulns found, or just to demonstrate capabilities as requested
-            if len(all_vulnerabilities) == 0:
-                logger.info("Injecting demo vulnerabilities to match frontend simulation")
-                send_update('Demo Mode', "Injecting demo vulnerabilities...", 92)
-                
-                # Demo Vuln 1: SQL Injection
-                VulnModel.objects.create(
-                    scan=scan_obj,
-                    name='SQL Injection (Union Based)',
-                    description='The application is vulnerable to SQL injection in the "id" parameter. An attacker can manipulate the SQL query to retrieve sensitive data from the database.',
-                    severity='CRITICAL',
-                    evidence="GET /api/v1/users?id=1' UNION SELECT 1,username,password FROM users--"
-                )
-                
-                # Demo Vuln 2: Reflected XSS
-                VulnModel.objects.create(
-                    scan=scan_obj,
-                    name='Reflected Cross-Site Scripting (XSS)',
-                    description='The application echoes user input without sanitization in the "search" parameter. This allows an attacker to execute arbitrary JavaScript in the victim\'s browser.',
-                    severity='HIGH',
-                    evidence='GET /search?q=<script>alert(document.cookie)</script>'
-                )
-                
-                # Update count for results
-                all_vulnerabilities.extend(['demo1', 'demo2'])
-                send_update('Vulnerability Found', "Found 2 demo vulnerabilities", 94, {'vuln_count': len(all_vulnerabilities)})
-            
-            # Enhanced reconnaissance data
-            logger.info("Generating enhanced reconnaissance data")
-            send_update('Reconnaissance', "Starting web crawler...", 95)
-            
-            # Real Crawler Execution
-            from engine.core.crawler import Crawler
-            
-            discovered_urls = []
-            
-            def on_url_found(url):
-                discovered_urls.append(url)
-                send_update('Reconnaissance', f"Found: {url}", 95, {'url_found': url})
-            
-            try:
-                crawler = Crawler(target.url, max_depth=2, max_pages=30, callback=on_url_found)
-                crawler.crawl()
-                send_update('Reconnaissance', f"Crawler finished. Found {len(discovered_urls)} URLs.", 96, {'discovered_urls': discovered_urls})
-            except Exception as e:
-                logger.error(f"Crawler failed: {e}")
-                send_update('Reconnaissance', "Crawler failed, using basic URL.", 96)
-                discovered_urls = [target.url]
+            # NOTE: Previous "demo mode" that fabricated fake SQLi/XSS findings when
+            # no real vulnerabilities were found has been removed — a scanner must
+            # never invent findings. An empty result set now means "nothing found".
 
-            # Simulated subdomains (keep simulation for now as subdomain enum is complex)
-            from urllib.parse import urlparse
-            parsed_url = urlparse(target.url)
-            base_domain = parsed_url.netloc
-            subdomains = [
-                f'www.{base_domain}',
-                f'api.{base_domain}',
-                f'admin.{base_domain}'
-            ]
-            
-            # Simulated open ports (keep simulation for now)
-            open_ports = [
-                {'port': 80, 'service': 'HTTP', 'state': 'open'},
-                {'port': 443, 'service': 'HTTPS', 'state': 'open'}
-            ]
-            
-            # Tech stack detection from TARGET website
-            logger.info("Detecting tech stack from target website")
-            send_update('Reconnaissance', "Detecting tech stack...", 98)
-            
-            tech_stack = {
-                'server': 'Unknown',
-                'backend': 'Unknown',
-                'database': 'Unknown',
-                'frontend': 'Unknown',
-                'languages': [],
-                'frameworks': [],
-                'headers': {}
-            }
-            
-            try:
-                # Make a request to the target to detect tech stack
-                response = self.session.get(target.url, timeout=5)
-                headers = response.headers
-                
-                # Detect server
-                tech_stack['server'] = headers.get('Server', 'Unknown')
-                
-                # Detect backend from headers
-                if 'X-Powered-By' in headers:
-                    tech_stack['backend'] = headers['X-Powered-By']
-                elif 'x-aspnet-version' in headers:
-                    tech_stack['backend'] = f"ASP.NET {headers['x-aspnet-version']}"
-                
-                # Detect frameworks from headers and content
-                content = response.text.lower()
-                if 'wordpress' in content:
-                    tech_stack['frameworks'].append('WordPress')
-                if 'drupal' in content:
-                    tech_stack['frameworks'].append('Drupal')
-                if 'joomla' in content:
-                    tech_stack['frameworks'].append('Joomla')
-                if 'react' in content or 'react-dom' in content:
-                    tech_stack['frontend'] = 'React'
-                if 'vue' in content or 'vue.js' in content:
-                    tech_stack['frontend'] = 'Vue.js'
-                if 'angular' in content:
-                    tech_stack['frontend'] = 'Angular'
-                
-                # Detect languages
-                if 'php' in headers.get('X-Powered-By', '').lower():
-                    tech_stack['languages'].append('PHP')
-                if '.jsp' in target.url or 'x-servlet' in str(headers).lower():
-                    tech_stack['languages'].append('Java')
-                if 'python' in headers.get('Server', '').lower():
-                    tech_stack['languages'].append('Python')
-                
-                # Store relevant headers
-                tech_stack['headers'] = {
-                    'Server': headers.get('Server', 'N/A'),
-                    'X-Powered-By': headers.get('X-Powered-By', 'N/A'),
-                    'X-Frame-Options': headers.get('X-Frame-Options', 'N/A'),
-                    'Content-Type': headers.get('Content-Type', 'N/A')
-                }
-                
-            except Exception as e:
-                logger.warning(f"Could not detect tech stack: {e}")
-                tech_stack['server'] = 'Detection Failed'
+            # (Removed: redundant second crawl + simulated subdomains/ports/tech that
+            # were computed here but never saved. Real recon lives in recon_data above.)
+
             
             # Update scan to COMPLETED
             scan_obj.status = 'COMPLETED'
@@ -494,9 +348,9 @@ class ScanExecutor:
                 'target_url': scan_obj.project.target_url,
                 'reconnaissance': {
                     'open_ports': recon_data['open_ports'],
-                    'technologies': recon_data['technologies'],
+                    'tech_stack': recon_data['technologies'],
                     'subdomains': recon_data['subdomains'],
-                    'directories': recon_data['directories'],
+                    'subdirectories': [d.get('path', d) if isinstance(d, dict) else d for d in recon_data['directories']],
                     'discovered_urls': recon_data['urls'],
                     'attack_surface': {
                         'total_endpoints': len(recon_data['urls']) + len(recon_data['directories']),

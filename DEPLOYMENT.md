@@ -1,4 +1,4 @@
-# Deployment Guide - Cerberus API Sentinel
+# Deployment Guide - Miku Beam Sentinel
 
 ## Prerequisites
 
@@ -37,12 +37,12 @@ sudo apt install nodejs -y
 # Create PostgreSQL database and user
 sudo -u postgres psql
 
-CREATE DATABASE cerberus_db;
-CREATE USER cerberus_user WITH PASSWORD 'your_secure_password';
-ALTER ROLE cerberus_user SET client_encoding TO 'utf8';
-ALTER ROLE cerberus_user SET default_transaction_isolation TO 'read committed';
-ALTER ROLE cerberus_user SET timezone TO 'UTC';
-GRANT ALL PRIVILEGES ON DATABASE cerberus_db TO cerberus_user;
+CREATE DATABASE miku_beam_db;
+CREATE USER miku_beam_user WITH PASSWORD 'your_secure_password';
+ALTER ROLE miku_beam_user SET client_encoding TO 'utf8';
+ALTER ROLE miku_beam_user SET default_transaction_isolation TO 'read committed';
+ALTER ROLE miku_beam_user SET timezone TO 'UTC';
+GRANT ALL PRIVILEGES ON DATABASE miku_beam_db TO miku_beam_user;
 \q
 ```
 
@@ -51,8 +51,8 @@ GRANT ALL PRIVILEGES ON DATABASE cerberus_db TO cerberus_user;
 ```bash
 # Clone repository
 cd /opt
-sudo git clone https://github.com/yourusername/cerberus-sentinel.git
-cd cerberus-sentinel
+sudo git clone https://github.com/yourusername/miku-beam-sentinel.git
+cd miku-beam-sentinel
 sudo chown -R $USER:$USER .
 
 # Create virtual environment
@@ -77,8 +77,8 @@ ALLOWED_HOSTS = ['your-domain.com', 'www.your-domain.com', 'server-ip']
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'cerberus_db',
-        'USER': 'cerberus_user',
+        'NAME': 'miku_beam_db',
+        'USER': 'miku_beam_user',
         'PASSWORD': 'your_secure_password',
         'HOST': 'localhost',
         'PORT': '5432',
@@ -119,11 +119,11 @@ npm run build
 
 ### 7. Systemd Service for Backend
 
-Create `/etc/systemd/system/cerberus-backend.service`:
+Create `/etc/systemd/system/miku-beam-backend.service`:
 
 ```ini
 [Unit]
-Description=Cerberus API Sentinel Backend
+Description=Miku Beam Sentinel Backend
 After=network.target
 
 [Service]
@@ -131,9 +131,9 @@ Type=notify
 User=www-data
 Group=www-data
 RuntimeDirectory=gunicorn
-WorkingDirectory=/opt/cerberus-sentinel/web/backend
-Environment="PATH=/opt/cerberus-sentinel/venv/bin"
-ExecStart=/opt/cerberus-sentinel/venv/bin/gunicorn --workers 3 --bind unix:/run/gunicorn/cerberus.sock config.wsgi:application
+WorkingDirectory=/opt/miku-beam-sentinel/web/backend
+Environment="PATH=/opt/miku-beam-sentinel/venv/bin"
+ExecStart=/opt/miku-beam-sentinel/venv/bin/gunicorn --workers 3 --bind unix:/run/gunicorn/miku-beam.sock config.wsgi:application
 ExecReload=/bin/kill -s HUP $MAINPID
 KillMode=mixed
 TimeoutStopSec=5
@@ -146,13 +146,13 @@ WantedBy=multi-user.target
 Enable and start:
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable cerberus-backend
-sudo systemctl start cerberus-backend
+sudo systemctl enable miku-beam-backend
+sudo systemctl start miku-beam-backend
 ```
 
 ### 8. Nginx Configuration
 
-Create `/etc/nginx/sites-available/cerberus`:
+Create `/etc/nginx/sites-available/miku-beam`:
 
 ```nginx
 server {
@@ -161,13 +161,13 @@ server {
 
     # Frontend
     location / {
-        root /opt/cerberus-sentinel/web/frontend/dist;
+        root /opt/miku-beam-sentinel/web/frontend/dist;
         try_files $uri $uri/ /index.html;
     }
 
     # Backend API
     location /api {
-        proxy_pass http://unix:/run/gunicorn/cerberus.sock;
+        proxy_pass http://unix:/run/gunicorn/miku-beam.sock;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -176,7 +176,7 @@ server {
 
     # Admin
     location /admin {
-        proxy_pass http://unix:/run/gunicorn/cerberus.sock;
+        proxy_pass http://unix:/run/gunicorn/miku-beam.sock;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -184,14 +184,14 @@ server {
 
     # Static files
     location /static {
-        alias /opt/cerberus-sentinel/web/backend/staticfiles;
+        alias /opt/miku-beam-sentinel/web/backend/staticfiles;
     }
 }
 ```
 
 Enable site:
 ```bash
-sudo ln -s /etc/nginx/sites-available/cerberus /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/miku-beam /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
 ```
@@ -267,8 +267,8 @@ services:
   db:
     image: postgres:15
     environment:
-      POSTGRES_DB: cerberus_db
-      POSTGRES_USER: cerberus_user
+      POSTGRES_DB: miku_beam_db
+      POSTGRES_USER: miku_beam_user
       POSTGRES_PASSWORD: secure_password
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -284,7 +284,7 @@ services:
     depends_on:
       - db
     environment:
-      - DATABASE_URL=postgresql://cerberus_user:secure_password@db:5432/cerberus_db
+      - DATABASE_URL=postgresql://miku_beam_user:secure_password@db:5432/miku_beam_db
 
   frontend:
     build: ./web/frontend
@@ -308,7 +308,7 @@ docker-compose up -d
 ### Log Monitoring
 ```bash
 # Gunicorn logs
-sudo journalctl -u cerberus-backend -f
+sudo journalctl -u miku-beam-backend -f
 
 # Nginx logs
 sudo tail -f /var/log/nginx/access.log
@@ -318,22 +318,22 @@ sudo tail -f /var/log/nginx/error.log
 ### Database Backups
 ```bash
 # Backup
-pg_dump cerberus_db > backup_$(date +%Y%m%d).sql
+pg_dump miku_beam_db > backup_$(date +%Y%m%d).sql
 
 # Restore
-psql cerberus_db < backup_20231201.sql
+psql miku_beam_db < backup_20231201.sql
 ```
 
 ### Updates
 ```bash
-cd /opt/cerberus-sentinel
+cd /opt/miku-beam-sentinel
 git pull
 source venv/bin/activate
 pip install -r requirements.txt
 cd web/backend
 python manage.py migrate
 python manage.py collectstatic --noinput
-sudo systemctl restart cerberus-backend
+sudo systemctl restart miku-beam-backend
 ```
 
 ## Security Checklist
@@ -353,7 +353,7 @@ sudo systemctl restart cerberus-backend
 
 ### Backend not starting
 ```bash
-sudo journalctl -u cerberus-backend --no-pager -n 50
+sudo journalctl -u miku-beam-backend --no-pager -n 50
 ```
 
 ### Database connection errors

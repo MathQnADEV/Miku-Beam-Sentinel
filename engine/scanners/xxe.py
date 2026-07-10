@@ -109,11 +109,15 @@ class XXEScanner(BaseScanner):
 <data>&xxe;</data>""",
     ]
     
+    # Only file/metadata content signatures that come from the *server's* internal
+    # resources — NOT strings that appear in the payload itself. Reflection-prone
+    # markers (<!ENTITY, <!DOCTYPE) and over-generic ones (localhost, 127.0.0.1)
+    # were removed because a server that merely echoes the request body would
+    # otherwise be reported as vulnerable (false positive).
     INDICATORS = [
         "root:",
         "[extensions]",
         "ami-",
-        "localhost",
         "bin/bash",
         "daemon:",
         "nobody:",
@@ -123,9 +127,6 @@ class XXEScanner(BaseScanner):
         "[operating systems]",
         "instance-id",
         "security-credentials",
-        "127.0.0.1",
-        "<!ENTITY",
-        "<!DOCTYPE",
     ]
     
     def scan(self, target: Target, callback=None) -> List[Vulnerability]:
@@ -148,8 +149,9 @@ class XXEScanner(BaseScanner):
                 )
                 
                 # Check for XXE indicators in response
+                response_lower = response.text.lower()
                 for indicator in self.INDICATORS:
-                    if indicator in response.text.lower():
+                    if indicator.lower() in response_lower:
                         vuln = Vulnerability(
                             name="XML External Entity (XXE) Injection",
                             description="The application processes XML input without properly disabling external entity references, allowing disclosure of internal files or SSRF attacks.",

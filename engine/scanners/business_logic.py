@@ -1,65 +1,64 @@
 """
 Business Logic Flaws Scanner
-Tests for business logic vulnerabilities
+
+Business-logic flaws generally cannot be detected reliably without understanding
+the application's workflow, so this scanner is deliberately conservative: it only
+reports when there is concrete evidence that a manipulated value was accepted AND
+reflected back by the endpoint. Otherwise it reports nothing (rather than crying
+CRITICAL on every 200 response). Findings are flagged for manual verification.
 """
 import logging
-from .base import BaseScanner, Vulnerability
 from typing import List
+from .base import BaseScanner, Vulnerability
 from ..core.target import Target
 
 logger = logging.getLogger(__name__)
 
+
 class BusinessLogicScanner(BaseScanner):
-    """Scanner for detecting business logic flaws"""
-    
+    """Scanner for detecting *candidate* business logic flaws (needs manual review)."""
+
     def __init__(self, session):
         super().__init__(session)
         self.name = "Business Logic Scanner"
-    
+
     def scan(self, target: Target, callback=None) -> List[Vulnerability]:
-        """Scan target for Business Logic vulnerabilities"""
         vulnerabilities = []
         logger.info(f"Starting Business Logic scan on {target.url}")
-        
+
+        # Unusual sentinel values so a match is very unlikely to be coincidental.
+        NEG_QTY = -13337
+        NEG_AMT = -98765
+
         try:
-            # Test 1: Negative quantity
-            response = self.session.post(
+            resp = self.session.post(
                 target.url,
-                json={'quantity': -1, 'amount': -100},
-                timeout=5
+                json={"quantity": NEG_QTY, "amount": NEG_AMT},
+                timeout=8,
             )
-            
-            if response.status_code in [200, 201]:
-                if '-' in response.text or 'negative' not in response.text.lower():
-                    vulnerabilities.append(Vulnerability(
-                        name="Negative Value Accepted",
-                        severity="HIGH",
-                        description="Application accepts negative values where positive expected",
-                        evidence="Negative quantity/amount accepted",
-                        url=target.url
-                    ))
-            
-            # Test 2: Price manipulation
-            test_data = [
-                {'price': '0', 'cost': '0'},
-                {'price': '0.01'},
-                {'discount': '100'},
-                {'discount': '999'}
-            ]
-            
-            for data in test_data:
-                response = self.session.post(target.url, json=data, timeout=5)
-                if response.status_code in [200, 201]:
-                    vulnerabilities.append(Vulnerability(
-                        name="Price Manipulation Possible",
-                        severity="CRITICAL",
-                        description="Application may allow price/cost manipulation",
-                        evidence=f"Suspicious pricing data accepted: {data}",
-                        url=target.url
-                    ))
-                    break
-                        
+
+            body = resp.text or ""
+            accepted = resp.status_code in (200, 201)
+            reflected = str(NEG_QTY) in body or str(NEG_AMT) in body
+
+            # Only flag when the endpoint both accepted the request AND echoed the
+            # negative sentinel back (strong sign it was processed, not rejected).
+            if accepted and reflected:
+                vulnerabilities.append(Vulnerability(
+                    name="Possible Negative-Value Business Logic Flaw",
+                    severity="MEDIUM",
+                    description=(
+                        "The endpoint accepted a request with negative quantity/amount and reflected "
+                        "the negative value in its response. This MAY indicate a business-logic flaw "
+                        "(e.g. negative pricing). Manual verification required."
+                    ),
+                    evidence=f"POST negative sentinel values ({NEG_QTY}/{NEG_AMT}); reflected in response (HTTP {resp.status_code}).",
+                    url=target.url,
+                    recommendation="Validate value ranges server-side (reject non-positive quantities/amounts) and enforce business rules in the backend.",
+                ))
+                logger.warning(f"Candidate business logic flaw at {target.url} (manual review)")
+
         except Exception as e:
             logger.debug(f"Error testing business logic: {e}")
-        
+
         return vulnerabilities

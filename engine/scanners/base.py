@@ -4,12 +4,15 @@ from ..core.target import Target
 import requests
 
 class Vulnerability:
-    def __init__(self, name: str, description: str, severity: str, evidence: str, url: str = None):
+    def __init__(self, name: str, description: str, severity: str, evidence: str,
+                 url: str = None, recommendation: str = None, proof_of_concept: str = None):
         self.name = name
         self.description = description
         self.severity = severity
         self.evidence = evidence
         self.url = url
+        self.recommendation = recommendation
+        self.proof_of_concept = proof_of_concept
 
     def to_dict(self) -> Dict:
         return {
@@ -17,7 +20,9 @@ class Vulnerability:
             "description": self.description,
             "severity": self.severity,
             "evidence": self.evidence,
-            "url": self.url
+            "url": self.url,
+            "recommendation": self.recommendation,
+            "proof_of_concept": self.proof_of_concept,
         }
 
 class BaseScanner(ABC):

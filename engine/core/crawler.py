@@ -16,7 +16,7 @@ class Crawler:
         self.visited = set()
         self.urls = set()
         self.session = requests.Session()
-        self.session.headers.update({'User-Agent': 'Cerberus-Sentinel-Crawler/1.0'})
+        self.session.headers.update({'User-Agent': 'Miku-Beam-Sentinel-Crawler/1.0'})
 
     def crawl(self):
         """Start the crawling process"""

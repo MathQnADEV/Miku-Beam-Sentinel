@@ -45,7 +45,7 @@ const ScanProgress = ({ targetUrl, scanId: propScanId, onComplete }) => {
 
         // Determine WebSocket URL dynamically
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = 'localhost:8000'; // Default to localhost:8000 for dev
+        const host = 'localhost:8001'; // Miku Beam backend (moved off 8000 to avoid clashing with other local apps)
         // In production, this should be window.location.host or from env
 
         const wsUrl = `${protocol}//${host}/ws/scans/${scanId}/`;
@@ -156,32 +156,32 @@ const ScanProgress = ({ targetUrl, scanId: propScanId, onComplete }) => {
     }, [targetUrl, propScanId, onComplete]);
 
     return (
-        <div className="bg-gray-900 rounded-lg shadow-xl border border-gray-700 overflow-hidden font-mono text-sm h-full flex flex-col">
+        <div className="bg-gray-900 rounded-2xl shadow-2xl border border-pink-400/30 overflow-hidden font-mono text-sm h-full flex flex-col">
             {/* Header */}
-            <div className="bg-gray-800 px-4 py-2 flex justify-between items-center border-b border-gray-700 shrink-0">
-                <div className="flex items-center gap-2 text-gray-300">
+            <div className="bg-gradient-to-r from-[#39c5bb] to-[#ec4899] px-4 py-2 flex justify-between items-center shrink-0">
+                <div className="flex items-center gap-2 text-white">
                     <Terminal className="w-4 h-4" />
-                    <span className="font-semibold">Cerberus Scanner - Live Execution</span>
+                    <span className="font-semibold">Miku Beam Sentinel — Live Execution ♪</span>
                 </div>
-                <div className="flex items-center gap-4 text-xs">
-                    <div className="flex items-center gap-1 text-blue-400">
-                        <Globe className="w-3 h-3" />
-                        <span>{targetUrl}</span>
+                <div className="flex flex-wrap items-center justify-end gap-2 md:gap-4 text-xs">
+                    <div className="flex items-center gap-1 text-white/90 max-w-[45vw] md:max-w-none truncate">
+                        <Globe className="w-3 h-3 shrink-0" />
+                        <span className="truncate">{targetUrl}</span>
                     </div>
-                    <div className="flex items-center gap-1 text-green-400">
+                    <div className="flex items-center gap-1 text-white">
                         <Activity className="w-3 h-3 animate-pulse" />
                         <span>{currentAction}</span>
                     </div>
                     {/* DEBUG INFO */}
-                    <div className="text-xs text-gray-500">
-                        Scan ID: {propScanId || 'N/A'} | WS: {window.location.protocol === 'https:' ? 'wss' : 'ws'}://localhost:8000
+                    <div className="hidden lg:block text-xs text-white/70">
+                        Scan ID: {propScanId || 'N/A'} | WS: {window.location.protocol === 'https:' ? 'wss' : 'ws'}://localhost:8001
                     </div>
                 </div>
             </div>
 
-            <div className="flex flex-1 min-h-0">
+            <div className="flex flex-col md:flex-row flex-1 min-h-0">
                 {/* Left Column: Logs & Payloads */}
-                <div className="flex-1 flex flex-col border-r border-gray-700">
+                <div className="flex-1 flex flex-col border-b md:border-b-0 md:border-r border-gray-700 min-h-0">
                     {/* Terminal Output */}
                     <div className="flex-1 p-4 overflow-y-auto bg-black text-green-500 space-y-1 font-mono border-b border-gray-700">
                         <div className="text-gray-500 text-xs mb-2 uppercase tracking-wider">System Logs</div>
@@ -195,7 +195,7 @@ const ScanProgress = ({ targetUrl, scanId: propScanId, onComplete }) => {
                     </div>
 
                     {/* Active Payloads */}
-                    <div className="h-48 p-4 overflow-y-auto bg-gray-900 text-blue-400 space-y-1 font-mono">
+                    <div className="h-48 p-4 overflow-y-auto bg-gray-900 text-cyan-300 space-y-1 font-mono">
                         <div className="text-gray-500 text-xs mb-2 uppercase tracking-wider flex items-center gap-2">
                             <Shield className="w-3 h-3" /> Active Payloads
                         </div>
@@ -203,7 +203,7 @@ const ScanProgress = ({ targetUrl, scanId: propScanId, onComplete }) => {
                             <div className="text-gray-600 italic">Waiting for scanner...</div>
                         ) : (
                             activePayloads.map((payload, i) => (
-                                <div key={i} className="break-all text-xs border-l-2 border-blue-500 pl-2">
+                                <div key={i} className="break-all text-xs border-l-2 border-teal-400 pl-2">
                                     {payload}
                                 </div>
                             ))
@@ -213,13 +213,13 @@ const ScanProgress = ({ targetUrl, scanId: propScanId, onComplete }) => {
                 </div>
 
                 {/* Right Column: Stats & Sitemap */}
-                <div className="w-80 bg-gray-800 flex flex-col gap-6 p-4 overflow-y-auto">
+                <div className="w-full md:w-80 bg-gray-800 flex flex-col gap-6 p-4 overflow-y-auto shrink-0">
                     {/* Progress Circle */}
                     <div className="text-center shrink-0">
                         <div className="relative w-24 h-24 mx-auto mb-2 flex items-center justify-center">
                             <svg className="w-full h-full transform -rotate-90">
                                 <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-gray-700" />
-                                <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="transparent" strokeDasharray={251.2} strokeDashoffset={251.2 - (251.2 * progress) / 100} className="text-blue-500 transition-all duration-300 ease-out" />
+                                <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="transparent" strokeDasharray={251.2} strokeDashoffset={251.2 - (251.2 * progress) / 100} className="text-pink-500 transition-all duration-300 ease-out" />
                             </svg>
                             <span className="absolute text-xl font-bold text-white">{progress}%</span>
                         </div>

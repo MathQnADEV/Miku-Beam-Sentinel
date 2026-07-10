@@ -144,8 +144,12 @@ class SSRFScanner(BaseScanner):
                     
                     # Check for SSRF indicators in response
                     if response.status_code == 200 and response.text:
+                        response_lower = response.text.lower()
                         for indicator in self.INDICATORS:
-                            if indicator in response.text.lower():
+                            # Case-insensitive on both sides; several indicators
+                            # (computeMetadata, GCE_METADATA, Azure) are mixed-case
+                            # and would never match a pre-lowercased response.
+                            if indicator.lower() in response_lower:
                                 vuln = Vulnerability(
                                     name="Server-Side Request Forgery (SSRF)",
                                     description=f"The application makes requests to URLs provided by users without proper validation, potentially allowing access to internal resources. Parameter '{param}' is vulnerable.",

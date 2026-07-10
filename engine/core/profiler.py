@@ -18,7 +18,7 @@ class Profiler:
         self.target = target
         self.session = requests.Session()
         self.session.headers.update({
-            'User-Agent': 'Cerberus-API-Sentinel/1.0'
+            'User-Agent': 'Miku-Beam-Sentinel/1.0'
         })
     
     def profile(self):

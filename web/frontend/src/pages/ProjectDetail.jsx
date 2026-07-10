@@ -15,6 +15,7 @@ const ProjectDetail = () => {
     const [error, setError] = useState(null);
     const [loadingVulns, setLoadingVulns] = useState(false);
     const [startingScan, setStartingScan] = useState(false);
+    const [currentScanId, setCurrentScanId] = useState(null);
     const [deleteModal, setDeleteModal] = useState({ isOpen: false, scanId: null });
 
     useEffect(() => {
@@ -57,27 +58,24 @@ const ProjectDetail = () => {
 
     const handleStartScan = async () => {
         setStartingScan(true);
-        // ScanProgress component will handle the visualization
-        // The actual API call happens inside the component's onComplete or we trigger it here?
-        // Wait, the API call is synchronous. We need to start the API call BUT show the UI.
-        // If we await the API call, the UI won't update if it's blocking the main thread? 
-        // No, JS is single threaded but the await yields.
-        // However, we want the visualization to run for 20s.
-        // So we should start the visualization AND the API call.
-
         try {
-            await projectsAPI.startScan(id);
+            // Capture the created scan's id and hand it to ScanProgress so it can
+            // open the WebSocket. Without this the component errors out and hangs.
+            const res = await projectsAPI.startScan(id);
+            setCurrentScanId(res.data.id);
             await fetchProjectData();
-            // We don't alert here anymore, the visualization will finish naturally
         } catch (err) {
             console.error('Error starting scan:', err);
             alert('Failed to start scan. Please try again.');
             setStartingScan(false);
+            setCurrentScanId(null);
         }
     };
 
     const onScanComplete = () => {
         setStartingScan(false);
+        setCurrentScanId(null);
+        fetchProjectData();
         alert('Scan completed successfully!');
     };
 
@@ -117,10 +115,11 @@ const ProjectDetail = () => {
                 </div>
             </div>
 
-            {startingScan ? (
+            {startingScan && currentScanId ? (
                 <div className="flex-1 flex flex-col min-h-0">
                     <ScanProgress
                         targetUrl={project.target_url}
+                        scanId={currentScanId}
                         onComplete={onScanComplete}
                     />
                 </div>
@@ -247,11 +246,11 @@ const ProjectDetail = () => {
                                                 {/* Subdirectories */}
                                                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                                                     <h4 className="font-semibold text-blue-900 mb-2 text-sm">
-                                                        📁 Subdirectories ({selectedScan.results.reconnaissance.subdirectories.length})
+                                                        📁 Subdirectories ({(selectedScan.results.reconnaissance.subdirectories || []).length})
                                                     </h4>
                                                     <div className="max-h-40 overflow-y-auto space-y-1">
-                                                        {selectedScan.results.reconnaissance.subdirectories.map((dir, idx) => (
-                                                            <div key={idx} className="text-xs font-mono bg-white px-2 py-1 rounded text-gray-700">{dir}</div>
+                                                        {(selectedScan.results.reconnaissance.subdirectories || []).map((dir, idx) => (
+                                                            <div key={idx} className="text-xs font-mono bg-white px-2 py-1 rounded text-gray-700">{typeof dir === 'string' ? dir : dir.path}</div>
                                                         ))}
                                                     </div>
                                                 </div>
@@ -259,10 +258,10 @@ const ProjectDetail = () => {
                                                 {/* Subdomains */}
                                                 <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
                                                     <h4 className="font-semibold text-purple-900 mb-2 text-sm">
-                                                        🌐 Subdomains ({selectedScan.results.reconnaissance.subdomains.length})
+                                                        🌐 Subdomains ({(selectedScan.results.reconnaissance.subdomains || []).length})
                                                     </h4>
                                                     <div className="max-h-40 overflow-y-auto space-y-1">
-                                                        {selectedScan.results.reconnaissance.subdomains.map((sub, idx) => (
+                                                        {(selectedScan.results.reconnaissance.subdomains || []).map((sub, idx) => (
                                                             <div key={idx} className="text-xs font-mono bg-white px-2 py-1 rounded text-gray-700">{sub}</div>
                                                         ))}
                                                     </div>
@@ -271,10 +270,10 @@ const ProjectDetail = () => {
                                                 {/* Open Ports */}
                                                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                                                     <h4 className="font-semibold text-green-900 mb-2 text-sm">
-                                                        🔓 Open Ports ({selectedScan.results.reconnaissance.open_ports.length})
+                                                        🔓 Open Ports ({(selectedScan.results.reconnaissance.open_ports || []).length})
                                                     </h4>
                                                     <div className="max-h-40 overflow-y-auto space-y-1">
-                                                        {selectedScan.results.reconnaissance.open_ports.map((port, idx) => (
+                                                        {(selectedScan.results.reconnaissance.open_ports || []).map((port, idx) => (
                                                             <div key={idx} className="text-xs bg-white px-2 py-1 rounded flex justify-between">
                                                                 <span className="font-mono text-gray-700">Port {port.port}</span>
                                                                 <span className="text-gray-600">{port.service}</span>
@@ -293,16 +292,16 @@ const ProjectDetail = () => {
                                                     </h4>
                                                     <div className="max-h-40 overflow-y-auto space-y-1 text-xs">
                                                         <div className="bg-white px-2 py-1 rounded">
-                                                            <span className="font-semibold text-gray-700">Server:</span> {selectedScan.results.reconnaissance.tech_stack.server}
+                                                            <span className="font-semibold text-gray-700">Server:</span> {selectedScan.results.reconnaissance.tech_stack?.server ?? 'Unknown'}
                                                         </div>
                                                         <div className="bg-white px-2 py-1 rounded">
-                                                            <span className="font-semibold text-gray-700">Backend:</span> {selectedScan.results.reconnaissance.tech_stack.backend}
+                                                            <span className="font-semibold text-gray-700">Backend:</span> {selectedScan.results.reconnaissance.tech_stack?.backend ?? 'Unknown'}
                                                         </div>
                                                         <div className="bg-white px-2 py-1 rounded">
-                                                            <span className="font-semibold text-gray-700">Frontend:</span> {selectedScan.results.reconnaissance.tech_stack.frontend}
+                                                            <span className="font-semibold text-gray-700">Frontend:</span> {selectedScan.results.reconnaissance.tech_stack?.frontend ?? 'Unknown'}
                                                         </div>
                                                         <div className="bg-white px-2 py-1 rounded">
-                                                            <span className="font-semibold text-gray-700">Languages:</span> {selectedScan.results.reconnaissance.tech_stack.languages.join(', ')}
+                                                            <span className="font-semibold text-gray-700">Languages:</span> {(selectedScan.results.reconnaissance.tech_stack?.languages || []).join(', ')}
                                                         </div>
                                                     </div>
                                                 </div>

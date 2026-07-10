@@ -62,10 +62,10 @@ const Reports = () => {
     if (loading) return <div className="p-8">Loading reports...</div>;
 
     return (
-        <div className="p-8">
+        <div className="p-4 md:p-8">
             <h2 className="text-2xl font-bold mb-6 text-gray-800">Scan Reports</h2>
 
-            <div className="bg-white rounded-lg shadow overflow-hidden border border-gray-200">
+            <div className="bg-white rounded-lg shadow overflow-x-auto border border-gray-200">
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
@@ -103,7 +103,7 @@ const Reports = () => {
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                     <div className="flex items-center justify-end gap-2">
-                                        <Link to={`/reports/${scan.id}`} className="text-blue-600 hover:text-blue-900 flex items-center gap-1">
+                                        <Link to={`/reports/${scan.id}`} className="text-pink-600 hover:text-pink-800 flex items-center gap-1">
                                             <FileText className="w-4 h-4" /> View
                                         </Link>
                                         <button

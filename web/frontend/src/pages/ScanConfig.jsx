@@ -95,7 +95,7 @@ const ScanConfig = () => {
     };
 
     return (
-        <div className="p-8 max-w-6xl mx-auto">
+        <div className="p-4 md:p-8 max-w-6xl mx-auto">
             <div className="flex justify-between items-center mb-8">
                 <h2 className="text-2xl font-bold text-gray-800">New Scan Configuration</h2>
             </div>
@@ -153,7 +153,7 @@ const ScanConfig = () => {
                                     type="checkbox"
                                     checked={scanModules[module.id] || false}
                                     onChange={(e) => setScanModules({ ...scanModules, [module.id]: e.target.checked })}
-                                    className="mr-3 h-4 w-4 text-blue-600"
+                                    className="mr-3 h-4 w-4 text-pink-500"
                                 />
                                 <span className="text-sm text-gray-700">{module.name}</span>
                             </label>
@@ -171,7 +171,7 @@ const ScanConfig = () => {
                                 });
                             setScanModules(newModules);
                         }}
-                        className="mt-3 text-sm text-blue-600 hover:text-blue-700 font-medium"
+                        className="mt-3 text-sm text-pink-500 hover:text-blue-700 font-medium"
                     >
                         {Object.values(scanModules).every(v => v) ? 'Deselect All' : 'Select All'}
                     </button>
@@ -189,8 +189,8 @@ const ScanConfig = () => {
 
             {/* Scan Visualization Modal */}
             {scanning && currentProject && currentScanId && (
-                <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-8">
-                    <div className="w-full h-full max-w-7xl max-h-[90vh] flex flex-col">
+                <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-2 md:p-8">
+                    <div className="w-full h-full max-w-7xl max-h-[95vh] md:max-h-[90vh] flex flex-col">
                         <ScanProgress
                             targetUrl={currentProject.target_url}
                             scanId={currentScanId}

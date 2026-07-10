@@ -1,4 +1,5 @@
 import argparse
+import json
 import logging
 import sys
 from colorama import init, Fore, Style
@@ -39,7 +40,7 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[logging.StreamHandler(sys.stdout)]
 )
-logger = logging.getLogger("cerberus.cli")
+logger = logging.getLogger("mikubeam.cli")
 
 def print_banner():
     banner = fr"""{Fore.RED}
@@ -52,15 +53,15 @@ def print_banner():
   | (__  | _ \ | '_| / -_) | '_| | U | 
    \___| |___/ |_|   \___| |_|   |___| 
                                        
-  {Fore.BLUE}Cerberus API Sentinel v1.0{Style.RESET_ALL}
+  {Fore.BLUE}Miku Beam Sentinel v1.0{Style.RESET_ALL}
   {Fore.WHITE}Professional API Security Scanner{Style.RESET_ALL}
-  {Fore.CYAN}Author: Sudeepa Wanigarathna{Style.RESET_ALL}
+  {Fore.CYAN}Author: MathQnADEV (based on Cerberus API Sentinel by Sudeepa Wanigarathna){Style.RESET_ALL}
     """
     print(banner)
 
 def main():
     print_banner()
-    parser = argparse.ArgumentParser(description="Cerberus API Sentinel - API Security Scanner")
+    parser = argparse.ArgumentParser(description="Miku Beam Sentinel - API Security Scanner")
     parser.add_argument("-u", "--url", help="Target API URL (e.g., https://example.com/api)")
     parser.add_argument("-m", "--method", default="GET", help="HTTP Method (GET, POST, etc.)")
     parser.add_argument("--gui", action="store_true", help="Launch the Web GUI Dashboard")
@@ -105,7 +106,7 @@ def main():
     args = parser.parse_args()
 
     if args.gui:
-        print(f"{Fore.GREEN}[*] Please use 'cerberus --gui' to launch the interface.{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}[*] Please use 'miku-beam --gui' to launch the interface.{Style.RESET_ALL}")
         return
 
     if not args.url:
@@ -127,13 +128,27 @@ def main():
     elif args.auth_type == "basic" and args.auth_user and args.auth_pass:
         auth_type = AuthType.BASIC
         auth_credentials = {"username": args.auth_user, "password": args.auth_pass}
-    
+    elif args.auth_type == "api_key" and args.auth_token:
+        # Use --auth-token as the API key value; header name defaults to X-API-Key.
+        auth_type = AuthType.API_KEY
+        auth_credentials = {"key_name": "X-API-Key", "key_value": args.auth_token}
+
     authenticator = Authenticator(auth_type=auth_type, credentials=auth_credentials)
 
     # 3. Profiling
     profiler = Profiler(target)
     # Apply auth to profiler session
     authenticator.authenticate(profiler.session)
+
+    # Apply custom headers (JSON) if provided. The scanners reuse profiler.session,
+    # so headers set here also apply to the vulnerability-scanning phase.
+    if args.headers:
+        try:
+            profiler.session.headers.update(json.loads(args.headers))
+        except (json.JSONDecodeError, ValueError) as e:
+            print(f"{Fore.RED}[!] Invalid --headers JSON: {e}{Style.RESET_ALL}")
+            return
+
     profiler.profile()
     
     print_recon_data(target)

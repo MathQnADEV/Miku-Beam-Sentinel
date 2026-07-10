@@ -52,15 +52,15 @@ const Login = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 flex items-center justify-center p-4">
-            <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl overflow-hidden">
+        <div className="min-h-screen bg-gradient-to-br from-[#39c5bb] via-[#22d3ee] to-[#ec4899] flex items-center justify-center p-4">
+            <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl overflow-hidden">
                 {/* Header */}
-                <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-8 text-white">
+                <div className="miku-animated-bg p-8 text-white">
                     <div className="flex justify-center mb-4">
-                        <Shield className="w-16 h-16" />
+                        <img src="/miku.svg" alt="Miku" className="w-20 h-20 rounded-full ring-4 ring-white/60 object-cover bg-white/25 miku-float" />
                     </div>
-                    <h1 className="text-3xl font-bold text-center">Cerberus Sentinel</h1>
-                    <p className="text-center text-blue-100 mt-2">API Security Scanner</p>
+                    <h1 className="text-3xl font-bold text-center font-miku">Miku Beam Sentinel</h1>
+                    <p className="text-center text-white/90 mt-2">API Security Scanner ✨</p>
                 </div>
 
                 {/* Form */}
@@ -68,14 +68,14 @@ const Login = () => {
                     <div className="flex gap-4 mb-6">
                         <button
                             onClick={() => setIsLogin(true)}
-                            className={`flex-1 py-2 rounded-lg font-semibold transition-colors ${isLogin ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
+                            className={`flex-1 py-2 rounded-lg font-semibold transition-colors ${isLogin ? 'bg-pink-500 text-white' : 'bg-gray-200 text-gray-600'
                                 }`}
                         >
                             Login
                         </button>
                         <button
                             onClick={() => setIsLogin(false)}
-                            className={`flex-1 py-2 rounded-lg font-semibold transition-colors ${!isLogin ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
+                            className={`flex-1 py-2 rounded-lg font-semibold transition-colors ${!isLogin ? 'bg-pink-500 text-white' : 'bg-gray-200 text-gray-600'
                                 }`}
                         >
                             Register
@@ -99,7 +99,7 @@ const Login = () => {
                                 name="username"
                                 value={formData.username}
                                 onChange={handleChange}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-400 focus:border-transparent"
                                 required
                             />
                         </div>
@@ -115,7 +115,7 @@ const Login = () => {
                                     name="email"
                                     value={formData.email}
                                     onChange={handleChange}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-400 focus:border-transparent"
                                     required={!isLogin}
                                 />
                             </div>
@@ -131,7 +131,7 @@ const Login = () => {
                                 name="password"
                                 value={formData.password}
                                 onChange={handleChange}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-400 focus:border-transparent"
                                 required
                             />
                         </div>
@@ -147,7 +147,7 @@ const Login = () => {
                                     name="password2"
                                     value={formData.password2}
                                     onChange={handleChange}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-400 focus:border-transparent"
                                     required={!isLogin}
                                 />
                             </div>
@@ -156,7 +156,7 @@ const Login = () => {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full bg-gradient-to-r from-blue-600 to-blue-800 text-white py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-blue-900 transition-colors disabled:opacity-50"
+                            className="w-full bg-gradient-to-r from-pink-500 to-cyan-500 text-white py-3 rounded-xl font-semibold hover:from-pink-600 hover:to-cyan-600 transition-all disabled:opacity-50 shadow-md"
                         >
                             {loading ? 'Please wait...' : isLogin ? 'Login' : 'Register'}
                         </button>

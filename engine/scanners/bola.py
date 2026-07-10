@@ -13,27 +13,6 @@ class BOLAScanner(BaseScanner):
         """Scan target for BOLA vulnerabilities"""
         vulnerabilities = []
         logger.info(f"Starting BOLA scan on {target.url}")
-        
-        for payload in self.PAYLOADS:
-            if callback:
-                callback(payload)
-                
-            try:
-                # Test in URL parameters
-                if '?' in target.url:
-                    test_url = f"{target.url}&id={payload}"
-                else:
-                    test_url = f"{target.url}?id={payload}"
-                
-                response = self.session.get(test_url, timeout=3)
-                # Further processing of response for BOLA vulnerability
-                # This part is missing in the provided snippet and needs to be implemented
-                # based on the scanner's logic. For now, we'll just log.
-                logger.debug(f"Tested URL parameter with payload {payload}: {test_url}, Status: {response.status_code}")
-                
-            except Exception as e:
-                logger.debug(f"Error testing URL parameter with payload {payload}: {str(e)}")
-                continue
 
         # Extract numeric IDs from URL
         id_pattern = r'/(\d+)/?'

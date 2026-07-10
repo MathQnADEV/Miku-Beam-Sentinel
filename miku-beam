@@ -1,16 +1,17 @@
 #!/bin/bash
-INSTALL_DIR="/home/cerberusmrxi/Desktop/new project/cerberus-sentinel"
+INSTALL_DIR="$(cd "$(dirname "$0")" && pwd)"
 if [ -f "$INSTALL_DIR/venv/bin/activate" ]; then
     source "$INSTALL_DIR/venv/bin/activate"
 fi
 export PYTHONPATH="$INSTALL_DIR"
 
 if [ "$1" == "--gui" ]; then
-    echo -e "\033[0;32m[*] Launching Cerberus Web Interface...\033[0m"
+    echo -e "\033[0;32m[*] Launching Miku Beam Sentinel Web Interface...\033[0m"
     
-    # Start Backend
+    # Start Backend (ASGI via Daphne — required for the WebSocket scan stream).
+    # The frontend talks to the backend on port 8001.
     cd "$INSTALL_DIR/web/backend"
-    python3 manage.py runserver 0.0.0.0:8000 > /dev/null 2>&1 &
+    daphne -b 0.0.0.0 -p 8001 config.asgi:application > /dev/null 2>&1 &
     BACKEND_PID=$!
     
     # Start Frontend

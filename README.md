@@ -9,6 +9,7 @@
 [![Django](https://img.shields.io/badge/django-5.x-092E20.svg)](https://www.djangoproject.com/)
 [![React](https://img.shields.io/badge/react-18-61DAFB.svg)](https://react.dev/)
 [![Status](https://img.shields.io/badge/status-active%20development-orange.svg)](#-project-status)
+[![CI](https://github.com/MathQnADEV/Miku-Beam-Sentinel/actions/workflows/tests.yml/badge.svg)](https://github.com/MathQnADEV/Miku-Beam-Sentinel/actions/workflows/tests.yml)
 
 [Features](#-key-features) • [Installation](#-installation) • [Usage](#-usage-examples) • [Architecture](#-architecture) • [Roadmap](#-roadmap) • [Disclaimer](#-security-disclaimer)
 
@@ -431,9 +432,26 @@ See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the detailed breakdown.
 
 ---
 
+## 🧪 Testing
+
+The engine has an offline test suite (no network — scanners are driven through a fake
+HTTP session) plus a smoke test that instantiates and runs every scanner, which guards
+against crash-on-load regressions.
+
+```bash
+pip install -r requirements-dev.txt
+pytest -q
+```
+
+CI (GitHub Actions) runs the tests, a Django system check, and the frontend build on
+every push and pull request — see [.github/workflows/tests.yml](.github/workflows/tests.yml).
+
+---
+
 ## 🤝 Contributing
 
 Contributions are welcome — especially detection-soundness improvements.
+Open issues are tracked in the [issue tracker](https://github.com/MathQnADEV/Miku-Beam-Sentinel/issues); the [`detection-quality`](https://github.com/MathQnADEV/Miku-Beam-Sentinel/labels/detection-quality) label is the highest-impact place to start.
 
 1. Fork the repo
 2. Create a feature branch (`git checkout -b feature/AmazingFeature`)

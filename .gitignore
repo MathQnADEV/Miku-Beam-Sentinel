@@ -60,3 +60,4 @@ reports/
 *.tmp
 *.temp
 .cache/
+.pytest_cache/

@@ -2,6 +2,7 @@ from typing import List
 from .base import BaseScanner, Vulnerability
 from ..core.target import Target
 import logging
+import re
 import time
 
 logger = logging.getLogger(__name__)
@@ -229,13 +230,17 @@ class SQLInjectionScanner(BaseScanner):
         "SLEEP(1)/*' or SLEEP(1) or '\" or SLEEP(1) or \"*/",
     ]
     
-    # Comprehensive error signatures
+    # Strong, database-specific error signatures only. The original list also
+    # carried a "# Generic" section ("SQL error", "Database error", "Syntax error",
+    # 'near "', ...) that matched ordinary error/documentation pages having nothing
+    # to do with SQL injection; those were removed. Each signature below is checked
+    # against a payload-free baseline in scan() and only counts if it is absent
+    # there (see the baseline-diff logic), so even these specific strings can't
+    # false-positive on a page that always shows them.
     ERRORS = [
         # MySQL
-        "SQL syntax",
         "mysql_fetch",
         "mysql_num_rows",
-        "MySQL Query fail",
         "You have an error in your SQL syntax",
         "supplied argument is not a valid MySQL",
         "mysql_fetch_array()",
@@ -243,10 +248,10 @@ class SQLInjectionScanner(BaseScanner):
         "mysql_fetch_row()",
         "mysql_num_rows()",
         "mysql_error()",
-        "Warning: mysql",
+        "Warning: mysql_",
         "MySqlClient",
         "com.mysql.jdbc",
-        
+
         # PostgreSQL
         "PostgreSQL query failed",
         "pg_query()",
@@ -256,7 +261,7 @@ class SQLInjectionScanner(BaseScanner):
         "pg_fetch",
         "org.postgresql",
         "PSQLException",
-        
+
         # MSSQL
         "Microsoft SQL Native Client error",
         "ODBC SQL Server Driver",
@@ -265,56 +270,84 @@ class SQLInjectionScanner(BaseScanner):
         "Microsoft OLE DB Provider for SQL Server",
         "System.Data.SqlClient.SqlException",
         "[SQL Server]",
-        "Driver.*SQL Server",
-        
+        "Incorrect syntax near",
+
         # Oracle
         "ORA-01756",  # quoted string not properly terminated
         "ORA-00933",  # SQL command not properly ended
         "ORA-00936",  # missing expression
         "ORA-01789",  # query block has incorrect number of result columns
-        "Oracle error",
         "Oracle JDBC",
         "oracle.jdbc",
-        
+
         # SQLite
         "SQLite Error",
         "sqlite3.OperationalError",
         "SQLITE_ERROR",
         "SQL logic error",
-        "near \"",
-        
-        # Generic
-        "SQL error",
-        "Database error",
-        "Syntax error",
-        "SQL command not properly ended",
-        "quoted string not properly terminated",
-        "You have an error in your SQL",
-        "syntax to use near",
-        "SQL statement",
-        "Incorrect syntax near",
-        "Invalid SQL:",
-        "SQL Error:",
-        "Warning: SQL",
-        "valid -SQL result",
-        "SQL query failed",
     ]
+
+    # Delay (seconds) above a parameter's own baseline latency required before a
+    # time-based payload is even considered; matches the CommandInjectionScanner
+    # convention. Compared against a per-parameter baseline (below), never against
+    # a raw wall-clock threshold, so a uniformly slow endpoint cannot false-positive.
+    DELAY_THRESHOLD = 4.0
+    TIME_MARKERS = ("SLEEP", "WAITFOR", "PG_SLEEP", "DBMS_LOCK")
+
+    # Parameter names to test. A class attribute (rather than a local in scan())
+    # so it can be narrowed in tests without exercising all of them.
+    PARAMS = ['id', 'user', 'username', 'email', 'password', 'search', 'q', 'query',
+              'name', 'page', 'cat', 'category', 'item', 'product']
     
+    def _baseline(self, target: Target, param: str):
+        """Payload-free control request for this parameter.
+
+        Returns (lowercased_body, elapsed_seconds). Every subsequent check compares
+        against this instead of judging a payload response in isolation — this is
+        what tells a genuine SQL error/delay apart from text or latency the endpoint
+        always has.
+        """
+        sep = '&' if '?' in target.url else '?'
+        url = f"{target.url}{sep}{param}=1"
+        try:
+            start = time.time()
+            response = self.session.get(url, timeout=10)
+            return response.text.lower(), time.time() - start
+        except Exception:
+            return "", 1.0
+
+    @staticmethod
+    def _fast_control_payload(payload: str):
+        """Zero-delay variant of a time-based payload: SLEEP(5) -> SLEEP(0),
+        SLEEP(1) -> SLEEP(0), WAITFOR DELAY '0:0:5' -> '0:0:0', etc.
+
+        Matches any numeric delay argument (not just "5") so every payload in
+        PAYLOADS that carries a real numeric duration gets a same-shaped,
+        zero-delay control — including ones using a duration other than 5, like
+        the SLEEP(1) polyglot. Without this, a payload with no fast-control variant
+        falls back to same-payload reproducibility (see scan()), which cannot tell
+        a real DB sleep apart from a keyword-triggered WAF/tarpit delay that would
+        reproduce identically on a second identical request.
+
+        Returns None only if the payload has no numeric delay literal to zero out
+        (e.g. a hypothetical obfuscated/expression-based delay).
+        """
+        fast = re.sub(r'\(\d+\)', '(0)', payload)
+        fast = re.sub(r'(\d+:\d+:)\d+', r'\g<1>0', fast)
+        return fast if fast != payload else None
+
     def scan(self, target: Target, callback=None) -> List[Vulnerability]:
         """
         Comprehensive SQL Injection scan with Nikto-level payload coverage
-        Tests 200+ payloads across multiple injection types and databases
+        Tests 146 payloads across multiple injection types and databases
         """
         vulnerabilities = []
         logger.info(f"Starting Nikto-level SQL Injection scan on {target.url}")
-        
-        # Parameters to test
-        params = ['id', 'user', 'username', 'email', 'password', 'search', 'q', 'query', 'name', 'page', 'cat', 'category', 'item', 'product']
-        
+
         payload_count = 0
-        total_tests = len(self.PAYLOADS) * len(params)
-        
-        for param in params:
+
+        for param in self.PARAMS:
+            baseline_text, baseline_elapsed = self._baseline(target, param)
             param_found = False  # report at most one finding per parameter (dedupe)
             for payload in self.PAYLOADS:
                 if param_found:
@@ -323,27 +356,30 @@ class SQLInjectionScanner(BaseScanner):
 
                 if callback:
                     callback(payload)
-                
+
                 try:
                     # Build test URL
                     if '?' in target.url:
                         test_url = f"{target.url}&{param}={payload}"
                     else:
                         test_url = f"{target.url}?{param}={payload}"
-                    
-                    # Measure response time for time-based detection
+
                     start_time = time.time()
                     response = self.session.get(test_url, timeout=10)
                     elapsed = time.time() - start_time
-                    
-                    # Check for error-based injection
+                    response_text_lower = response.text.lower()
+
+                    # Error-based: the signature must be introduced BY the payload —
+                    # present now but absent from the payload-free baseline — not
+                    # just present somewhere on the page.
                     for error in self.ERRORS:
-                        if error.lower() in response.text.lower():
+                        error_lower = error.lower()
+                        if error_lower in response_text_lower and error_lower not in baseline_text:
                             vuln = Vulnerability(
                                 name="SQL Injection (Error-Based)",
                                 description=f"SQL injection vulnerability detected via database error message. Parameter '{param}' is vulnerable to SQL injection through error disclosure.",
                                 severity="CRITICAL",
-                                evidence=f"Payload: {payload}\nParameter: {param}\nError signature: {error}\nResponse preview: {response.text[:500]}",
+                                evidence=f"Payload: {payload}\nParameter: {param}\nError signature: {error} (absent from the payload-free baseline)\nResponse preview: {response.text[:500]}",
                                 url=test_url,
                                 recommendation="Use parameterized queries/prepared statements. Never concatenate user input directly into SQL queries. Implement input validation and sanitization.",
                                 proof_of_concept=f"curl '{test_url}'"
@@ -352,15 +388,45 @@ class SQLInjectionScanner(BaseScanner):
                             logger.warning(f"SQL Injection found (error-based) at {test_url}")
                             param_found = True
                             break
-                    
-                    # Check for time-based blind injection
-                    if "SLEEP" in payload.upper() or "WAITFOR" in payload.upper() or "pg_sleep" in payload or "DBMS_LOCK" in payload:
-                        if elapsed >= 5:  # If request took 5+ seconds
+
+                    if param_found:
+                        break
+
+                    # Time-based blind: require a delay clearly above THIS parameter's
+                    # own baseline (not a fixed 5s — a uniformly slow endpoint must not
+                    # trigger), then confirm the delay is actually caused by the sleep
+                    # duration by re-testing a same-shaped payload with the delay
+                    # zeroed out. Falls back to a same-payload reproducibility check
+                    # when no delay literal can be substituted.
+                    if any(marker in payload.upper() for marker in self.TIME_MARKERS) \
+                            and elapsed >= baseline_elapsed + self.DELAY_THRESHOLD:
+                        fast_payload = self._fast_control_payload(payload)
+                        if fast_payload:
+                            # Built the same way as test_url (not test_url.replace(...)) so a
+                            # payload that happened to also appear in target.url couldn't
+                            # corrupt the substitution.
+                            if '?' in target.url:
+                                fast_url = f"{target.url}&{param}={fast_payload}"
+                            else:
+                                fast_url = f"{target.url}?{param}={fast_payload}"
+                            fast_start = time.time()
+                            self.session.get(fast_url, timeout=10)
+                            fast_elapsed = time.time() - fast_start
+                            confirmed = fast_elapsed < baseline_elapsed + self.DELAY_THRESHOLD
+                            note = f"Zero-delay control payload returned in {fast_elapsed:.2f}s (not delayed)"
+                        else:
+                            confirm_start = time.time()
+                            self.session.get(test_url, timeout=10)
+                            confirm_elapsed = time.time() - confirm_start
+                            confirmed = confirm_elapsed >= baseline_elapsed + self.DELAY_THRESHOLD
+                            note = f"Delay reproduced on a second request ({confirm_elapsed:.2f}s)"
+
+                        if confirmed:
                             vuln = Vulnerability(
                                 name="SQL Injection (Time-Based Blind)",
                                 description=f"SQL injection vulnerability detected via time-based analysis. Parameter '{param}' is vulnerable to blind SQL injection.",
                                 severity="CRITICAL",
-                                evidence=f"Payload: {payload}\nParameter: {param}\nResponse time: {elapsed:.2f}s (expected ~5s delay)\nTime-based blind injection confirmed",
+                                evidence=f"Payload: {payload}\nParameter: {param}\nBaseline: {baseline_elapsed:.2f}s | Delayed: {elapsed:.2f}s\n{note}",
                                 url=test_url,
                                 recommendation="Use parameterized queries/prepared statements. Implement strict input validation.",
                                 proof_of_concept=f"curl '{test_url}'"
@@ -368,10 +434,10 @@ class SQLInjectionScanner(BaseScanner):
                             vulnerabilities.append(vuln)
                             logger.warning(f"SQL Injection found (time-based) at {test_url}")
                             param_found = True
-                    
+
                 except Exception as e:
                     logger.debug(f"Error testing SQL injection payload {payload} on param {param}: {str(e)}")
                     continue
-        
+
         logger.info(f"SQL Injection scan complete. Tested {payload_count} payload combinations. Found {len(vulnerabilities)} vulnerabilities")
         return vulnerabilities

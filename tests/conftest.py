@@ -53,6 +53,16 @@ class FakeSession:
         self.calls = []  # list of (method, url, kwargs) for assertions
 
     def _respond(self, method, url, **kwargs):
+        # Mirror requests.Session's behaviour of merging `params=` into the URL's
+        # query string, so a handler matching on `url` sees the real final URL
+        # regardless of whether the scanner built the query string itself or passed
+        # `params=`.
+        params = kwargs.get("params")
+        if params:
+            from urllib.parse import urlencode
+            sep = "&" if "?" in url else "?"
+            url = f"{url}{sep}{urlencode(params, doseq=True)}"
+
         self.calls.append((method, url, kwargs))
         if self._handler is not None:
             custom = self._handler(method, url, **kwargs)

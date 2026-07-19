@@ -50,13 +50,22 @@ class DirectoryDiscoverer:
         '/changelog', '/version', '/status', '/health'
     ]
     
-    def __init__(self, target_url, timeout=3):
+    def __init__(self, target_url, timeout=3, session=None):
+        """
+        Args:
+            target_url: Target URL to discover paths on
+            timeout: Per-request timeout in seconds
+            session: Optional pre-configured requests.Session (e.g. one carrying
+                auth headers/cookies applied by an Authenticator). When omitted, a
+                plain, unauthenticated session is created as before.
+        """
         self.base_url = target_url.rstrip('/')
         self.timeout = timeout
-        self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
-        })
+        self.session = session if session is not None else requests.Session()
+        if session is None:
+            self.session.headers.update({
+                'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
+            })
     
     def check_path(self, path):
         """Check if a path exists"""
@@ -108,11 +117,22 @@ class DirectoryDiscoverer:
         """
         if paths is None:
             paths = self.COMMON_PATHS
-        
+
+        # Size the connection pool to the actual concurrency level. requests'
+        # default HTTPAdapter pool_maxsize (10) is far below max_workers (commonly
+        # 30 here); with more concurrent workers than pool slots, requests logs
+        # "Connection pool is full, discarding connection" and opens a fresh,
+        # non-pooled connection per excess request instead of reusing one — wasteful
+        # and, under load, a source of connection churn. Every path targets the
+        # same host, so pool_maxsize (connections per host) is what matters here.
+        adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=max(max_workers, 10))
+        self.session.mount('http://', adapter)
+        self.session.mount('https://', adapter)
+
         discovered = []
-        
+
         logger.info(f"Starting directory discovery on {self.base_url}")
-        
+
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_path = {executor.submit(self.check_path, path): path for path in paths}
             

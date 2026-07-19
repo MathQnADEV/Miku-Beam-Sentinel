@@ -10,13 +10,22 @@ from urllib.parse import urlparse
 logger = logging.getLogger(__name__)
 
 class TechDetector:
-    def __init__(self, target_url, timeout=5):
+    def __init__(self, target_url, timeout=5, session=None):
+        """
+        Args:
+            target_url: Target URL to profile
+            timeout: Request timeout in seconds
+            session: Optional pre-configured requests.Session (e.g. one carrying
+                auth headers/cookies applied by an Authenticator). When omitted, a
+                plain, unauthenticated session is created as before.
+        """
         self.target_url = target_url
         self.timeout = timeout
-        self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
-        })
+        self.session = session if session is not None else requests.Session()
+        if session is None:
+            self.session.headers.update({
+                'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
+            })
     
     def detect(self):
         """Detect all technologies"""

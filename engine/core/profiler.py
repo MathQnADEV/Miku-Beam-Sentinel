@@ -53,7 +53,7 @@ class Profiler:
         # Phase 2: Technology Detection
         logger.info("Phase 2: Technology Detection...")
         try:
-            tech_detector = TechDetector(self.target.url)
+            tech_detector = TechDetector(self.target.url, session=self.session)
             tech = tech_detector.detect()
             self.target.detailed_tech_stack = tech
             logger.info(f"Detected: Server={tech.get('server')}, Backend={tech.get('backend')}, Database={tech.get('database')}")
@@ -74,7 +74,7 @@ class Profiler:
         # Phase 4: Directory Discovery
         logger.info("Phase 4: Directory Discovery...")
         try:
-            dir_discoverer = DirectoryDiscoverer(self.target.url)
+            dir_discoverer = DirectoryDiscoverer(self.target.url, session=self.session)
             directories = dir_discoverer.discover(max_workers=30)
             self.target.subdirectories = [d['path'] for d in directories]
             logger.info(f"Found {len(self.target.subdirectories)} directories/files")
@@ -89,7 +89,7 @@ class Profiler:
             def on_url_found(url):
                 discovered_urls.append(url)
                 
-            crawler = Crawler(self.target.url, max_depth=2, max_pages=30, callback=on_url_found)
+            crawler = Crawler(self.target.url, max_depth=2, max_pages=30, callback=on_url_found, session=self.session)
             crawler.crawl()
             self.target.discovered_urls = discovered_urls
             logger.info(f"Crawled {len(discovered_urls)} URLs")

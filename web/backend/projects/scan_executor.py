@@ -175,7 +175,7 @@ class ScanExecutor:
             logger.info("Detecting technologies...")
             send_update('Tech Detection', "Analyzing technology stack...", 10)
             try:
-                tech_detector = TechDetector(target.url)
+                tech_detector = TechDetector(target.url, session=self.session)
                 recon_data['technologies'] = tech_detector.detect()
                 tech_summary = f"Server: {recon_data['technologies'].get('server', 'Unknown')}, Backend: {recon_data['technologies'].get('backend', 'Unknown')}"
                 send_update('Tech Detection', f"Technologies detected: {tech_summary}", 15, {
@@ -205,7 +205,7 @@ class ScanExecutor:
             logger.info("Discovering directories...")
             send_update('Directory Discovery', "Scanning for directories and files...", 20)
             try:
-                dir_discoverer = DirectoryDiscoverer(target.url)
+                dir_discoverer = DirectoryDiscoverer(target.url, session=self.session)
                 def on_dir_found(dir_info):
                     send_update('Directory Discovery', f"Found: {dir_info['path']} [{dir_info['status']}]", 22, {
                         'directory_found': dir_info
@@ -225,7 +225,7 @@ class ScanExecutor:
                     recon_data['urls'].append(url)
                     send_update('Web Crawling', f"Found: {url}", 27, {'url_found': url})
                 
-                crawler = Crawler(target.url, max_depth=2, max_pages=30, callback=on_url_found)
+                crawler = Crawler(target.url, max_depth=2, max_pages=30, callback=on_url_found, session=self.session)
                 crawler.crawl()
                 send_update('Web Crawling', f"Crawler finished. Found {len(recon_data['urls'])} URLs", 30)
             except Exception as e:

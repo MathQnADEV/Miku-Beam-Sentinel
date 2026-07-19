@@ -95,6 +95,14 @@ class FakeSession:
     def request(self, method, url, **kw):
         return self._respond(method, url, **kw)
 
+    def mount(self, prefix, adapter):
+        """No-op: real requests.Session.mount() installs a transport adapter
+        (e.g. to resize the connection pool). FakeSession makes no real
+        connections, so there is nothing to configure, but it must accept the
+        call since production code (e.g. DirectoryDiscoverer.discover()) calls
+        it unconditionally on whatever session it was given."""
+        pass
+
 
 @pytest.fixture
 def fake_session():

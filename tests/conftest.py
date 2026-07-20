@@ -15,6 +15,61 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 
+class FakeCookie:
+    """Minimal stand-in for a single http.cookiejar.Cookie, covering what
+    production code reads off cookies yielded by iterating requests'
+    RequestsCookieJar: .name, .secure, .has_nonstandard_attr(),
+    .get_nonstandard_attr()."""
+
+    def __init__(self, name, value="", secure=False, httponly=False, samesite=None):
+        self.name = name
+        self.value = value
+        self.secure = secure
+        self._httponly = httponly
+        self._samesite = samesite
+
+    def has_nonstandard_attr(self, attr):
+        return attr == "HttpOnly" and self._httponly
+
+    def get_nonstandard_attr(self, attr, default=None):
+        if attr == "SameSite":
+            return self._samesite if self._samesite is not None else default
+        return default
+
+
+class FakeCookieJar:
+    """Minimal stand-in for requests.cookies.RequestsCookieJar. Real behaviour
+    (verified against actual `requests`) is easy to get subtly wrong: plain
+    iteration (``for c in jar``) yields Cookie objects, while ``.items()``
+    yields plain (name, value-string) pairs -- NOT the same shape. This
+    mirrors both, so it behaves correctly regardless of which style production
+    code uses."""
+
+    def __init__(self, cookies=None):
+        # Accepts {name: "value"} or {name: {"value":.., "secure":.., "httponly":.., "samesite":..}}.
+        self._cookies = {}
+        for name, spec in (cookies or {}).items():
+            if isinstance(spec, dict):
+                self._cookies[name] = FakeCookie(name, **spec)
+            else:
+                self._cookies[name] = FakeCookie(name, value=spec)
+
+    def __iter__(self):
+        return iter(self._cookies.values())
+
+    def __bool__(self):
+        return bool(self._cookies)
+
+    def __len__(self):
+        return len(self._cookies)
+
+    def items(self):
+        return [(c.name, c.value) for c in self._cookies.values()]
+
+    def keys(self):
+        return self._cookies.keys()
+
+
 class FakeResponse:
     """Minimal stand-in for ``requests.Response`` covering the attributes the
     scanners actually read: text, status_code, content, headers, cookies."""
@@ -24,7 +79,7 @@ class FakeResponse:
         self.status_code = status_code
         self.headers = headers or {}
         self.content = content if content is not None else text.encode("utf-8", "ignore")
-        self.cookies = cookies or {}
+        self.cookies = cookies if isinstance(cookies, FakeCookieJar) else FakeCookieJar(cookies)
         self.url = ""
 
     def json(self):
@@ -69,7 +124,7 @@ class FakeSession:
             if custom is not None:
                 # A handler may return a ready FakeResponse or a dict of kwargs.
                 return FakeResponse(**custom) if isinstance(custom, dict) else custom
-        return FakeResponse(self._text, self._status, dict(self._headers), cookies=dict(self._cookies))
+        return FakeResponse(self._text, self._status, dict(self._headers), cookies=self._cookies)
 
     def get(self, url, **kw):
         return self._respond("GET", url, **kw)

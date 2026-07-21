@@ -6,29 +6,7 @@ from colorama import init, Fore, Style
 from engine.core.target import Target
 from engine.core.profiler import Profiler
 from engine.core.auth import Authenticator, AuthType
-from engine.scanners.injection import SQLInjectionScanner
-from engine.scanners.xss import XSSScanner
-from engine.scanners.cmdi import CommandInjectionScanner
-from engine.scanners.bola import BOLAScanner
-from engine.scanners.ssrf import SSRFScanner
-from engine.scanners.xxe import XXEScanner
-from engine.scanners.auth import AuthScanner
-from engine.scanners.access_control import BrokenAccessControlScanner
-from engine.scanners.misconfig import SecurityMisconfigurationScanner
-from engine.scanners.data_exposure import SensitiveDataExposureScanner
-from engine.scanners.nosql import NoSQLInjectionScanner
-from engine.scanners.graphql import GraphQLInjectionScanner
-from engine.scanners.ssti import SSTIScanner
-from engine.scanners.ldap import LDAPInjectionScanner
-from engine.scanners.xpath import XPathInjectionScanner
-from engine.scanners.xml_injection import XMLInjectionScanner
-from engine.scanners.jwt import JWTScanner
-from engine.scanners.oauth import OAuthScanner
-from engine.scanners.hpp import HTTPParameterPollutionScanner
-from engine.scanners.rate_limit import RateLimitScanner
-from engine.scanners.mass_assignment import MassAssignmentScanner
-from engine.scanners.business_logic import BusinessLogicScanner
-from engine.scanners.logging import LoggingScanner
+from engine.scanners.registry import REGISTRY
 from engine.reporting.reporter import Reporter
 
 # Initialize colorama
@@ -59,50 +37,41 @@ def print_banner():
     """
     print(banner)
 
-def main():
-    print_banner()
+def build_parser():
+    """Build the CLI argument parser.
+
+    The --scan-<key> flags are generated from the shared scanner registry
+    (engine/scanners/registry.py) instead of being hand-listed here, so a
+    scanner only needs to be added in one place to become reachable from both
+    the CLI and the web scan flow.
+    """
     parser = argparse.ArgumentParser(description="Miku Beam Sentinel - API Security Scanner")
     parser.add_argument("-u", "--url", help="Target API URL (e.g., https://example.com/api)")
     parser.add_argument("-m", "--method", default="GET", help="HTTP Method (GET, POST, etc.)")
     parser.add_argument("--gui", action="store_true", help="Launch the Web GUI Dashboard")
     parser.add_argument("--headers", help="Custom headers (JSON format)")
-    
+
     # Auth Arguments
     parser.add_argument("--auth-type", choices=["basic", "bearer", "api_key"], help="Authentication Type")
     parser.add_argument("--auth-token", help="Bearer Token")
     parser.add_argument("--auth-user", help="Basic Auth Username")
     parser.add_argument("--auth-pass", help="Basic Auth Password")
-    
+
     # Scan Options
     parser.add_argument("--scan-all", action="store_true", help="Enable all scans")
-    parser.add_argument("--scan-sqli", action="store_true", help="SQL Injection")
-    parser.add_argument("--scan-xss", action="store_true", help="Cross-Site Scripting")
-    parser.add_argument("--scan-cmdi", action="store_true", help="Command Injection")
-    parser.add_argument("--scan-bola", action="store_true", help="BOLA/IDOR")
-    parser.add_argument("--scan-ssrf", action="store_true", help="SSRF")
-    parser.add_argument("--scan-xxe", action="store_true", help="XXE")
-    parser.add_argument("--scan-auth", action="store_true", help="Broken Authentication")
-    parser.add_argument("--scan-access", action="store_true", help="Broken Access Control")
-    parser.add_argument("--scan-misconfig", action="store_true", help="Security Misconfiguration")
-    parser.add_argument("--scan-data", action="store_true", help="Sensitive Data Exposure")
-    parser.add_argument("--scan-nosql", action="store_true", help="NoSQL Injection")
-    parser.add_argument("--scan-graphql", action="store_true", help="GraphQL Injection")
-    parser.add_argument("--scan-ssti", action="store_true", help="SSTI")
-    parser.add_argument("--scan-ldap", action="store_true", help="LDAP Injection")
-    parser.add_argument("--scan-xpath", action="store_true", help="XPath Injection")
-    parser.add_argument("--scan-xml", action="store_true", help="XML Injection")
-    parser.add_argument("--scan-jwt", action="store_true", help="JWT Vulnerabilities")
-    parser.add_argument("--scan-oauth", action="store_true", help="OAuth Misconfigurations")
-    parser.add_argument("--scan-hpp", action="store_true", help="HTTP Parameter Pollution")
-    parser.add_argument("--scan-ratelimit", action="store_true", help="Rate Limiting Issues")
-    parser.add_argument("--scan-mass", action="store_true", help="Mass Assignment")
-    parser.add_argument("--scan-logic", action="store_true", help="Business Logic Flaws")
-    parser.add_argument("--scan-logging", action="store_true", help="Insufficient Logging")
-    
+    for spec in REGISTRY:
+        parser.add_argument(f"--scan-{spec.key}", action="store_true", help=spec.label, dest=f"scan_{spec.key.replace('-', '_')}")
+
     # Report Options
     parser.add_argument("--report-json", help="Output JSON report to file")
     parser.add_argument("--report-html", help="Output HTML report to file")
 
+    return parser
+
+
+def main():
+    print_banner()
+    parser = build_parser()
     args = parser.parse_args()
 
     if args.gui:
@@ -154,122 +123,20 @@ def main():
     print_recon_data(target)
 
     # 4. Scanning
+    # Driven by the same registry that generated the --scan-<key> flags above,
+    # so a scanner only needs to be added in one place (engine/scanners/registry.py)
+    # to become reachable from the CLI. An explicit --scan-<key> always runs that
+    # scanner regardless of detected tech (only the automatic/web selection path
+    # applies each spec's `applies_to` predicate).
     vulnerabilities = []
-    
-    if args.scan_all or args.scan_sqli:
-        logger.info("Running SQL Injection scan...")
-        scanner = SQLInjectionScanner(session=profiler.session)
-        vulnerabilities.extend(scanner.scan(target))
-
-    if args.scan_all or args.scan_xss:
-        logger.info("Running XSS scan...")
-        scanner = XSSScanner(session=profiler.session)
-        vulnerabilities.extend(scanner.scan(target))
-    
-    if args.scan_all or args.scan_cmdi:
-        logger.info("Running Command Injection scan...")
-        scanner = CommandInjectionScanner(session=profiler.session)
-        vulnerabilities.extend(scanner.scan(target))
-    
-    if args.scan_all or args.scan_bola:
-        logger.info("Running BOLA/IDOR scan...")
-        scanner = BOLAScanner(session=profiler.session)
-        vulnerabilities.extend(scanner.scan(target))
-    
-    if args.scan_all or args.scan_ssrf:
-        logger.info("Running SSRF scan...")
-        scanner = SSRFScanner(session=profiler.session)
-        vulnerabilities.extend(scanner.scan(target))
-    
-    if args.scan_all or args.scan_xxe:
-        logger.info("Running XXE scan...")
-        scanner = XXEScanner(session=profiler.session)
-        vulnerabilities.extend(scanner.scan(target))
-    
-    if args.scan_all or args.scan_auth:
-        logger.info("Running Authentication scan...")
-        scanner = AuthScanner(session=profiler.session)
-        vulnerabilities.extend(scanner.scan(target))
-    
-    if args.scan_all or args.scan_access:
-        logger.info("Running Access Control scan...")
-        scanner = BrokenAccessControlScanner(session=profiler.session)
-        vulnerabilities.extend(scanner.scan(target))
-    
-    if args.scan_all or args.scan_misconfig:
-        logger.info("Running Security Misconfiguration scan...")
-        scanner = SecurityMisconfigurationScanner(session=profiler.session)
-        vulnerabilities.extend(scanner.scan(target))
-    
-    if args.scan_all or args.scan_data:
-        logger.info("Running Sensitive Data Exposure scan...")
-        scanner = SensitiveDataExposureScanner(session=profiler.session)
-        vulnerabilities.extend(scanner.scan(target))
-    
-    if args.scan_all or args.scan_nosql:
-        logger.info("Running NoSQL Injection scan...")
-        scanner = NoSQLInjectionScanner(session=profiler.session)
-        vulnerabilities.extend(scanner.scan(target))
-    
-    if args.scan_all or args.scan_graphql:
-        logger.info("Running GraphQL Injection scan...")
-        scanner = GraphQLInjectionScanner(session=profiler.session)
-        vulnerabilities.extend(scanner.scan(target))
-    
-    if args.scan_all or args.scan_ssti:
-        logger.info("Running SSTI scan...")
-        scanner = SSTIScanner(session=profiler.session)
-        vulnerabilities.extend(scanner.scan(target))
-    
-    if args.scan_all or args.scan_ldap:
-        logger.info("Running LDAP Injection scan...")
-        scanner = LDAPInjectionScanner(session=profiler.session)
-        vulnerabilities.extend(scanner.scan(target))
-    
-    if args.scan_all or args.scan_xpath:
-        logger.info("Running XPath Injection scan...")
-        scanner = XPathInjectionScanner(session=profiler.session)
-        vulnerabilities.extend(scanner.scan(target))
-    
-    if args.scan_all or args.scan_xml:
-        logger.info("Running XML Injection scan...")
-        scanner = XMLInjectionScanner(session=profiler.session)
-        vulnerabilities.extend(scanner.scan(target))
-    
-    if args.scan_all or args.scan_jwt:
-        logger.info("Running JWT Vulnerabilities scan...")
-        scanner = JWTScanner(session=profiler.session)
-        vulnerabilities.extend(scanner.scan(target))
-    
-    if args.scan_all or args.scan_oauth:
-        logger.info("Running OAuth Misconfiguration scan...")
-        scanner = OAuthScanner(session=profiler.session)
-        vulnerabilities.extend(scanner.scan(target))
-    
-    if args.scan_all or args.scan_hpp:
-        logger.info("Running HTTP Parameter Pollution scan...")
-        scanner = HTTPParameterPollutionScanner(session=profiler.session)
-        vulnerabilities.extend(scanner.scan(target))
-    
-    if args.scan_all or args.scan_ratelimit:
-        logger.info("Running Rate Limiting scan...")
-        scanner = RateLimitScanner(session=profiler.session)
-        vulnerabilities.extend(scanner.scan(target))
-    
-    if args.scan_all or args.scan_mass:
-        logger.info("Running Mass Assignment scan...")
-        scanner = MassAssignmentScanner(session=profiler.session)
-        vulnerabilities.extend(scanner.scan(target))
-    
-    if args.scan_all or args.scan_logic:
-        logger.info("Running Business Logic scan...")
-        scanner = BusinessLogicScanner(session=profiler.session)
-        vulnerabilities.extend(scanner.scan(target))
-    
-    if args.scan_all or args.scan_logging:
-        logger.info("Running Logging & Monitoring scan...")
-        scanner = LoggingScanner(session=profiler.session)
-        vulnerabilities.extend(scanner.scan(target))
+    for spec in REGISTRY:
+        # Matches the explicit dest= given to add_argument above (rather than
+        # relying on argparse's own hyphen-to-underscore dest-mangling, which
+        # would silently diverge from this f-string for a future hyphenated key).
+        if args.scan_all or getattr(args, f"scan_{spec.key.replace('-', '_')}"):
+            logger.info(f"Running {spec.label} scan...")
+            scanner = spec.scanner_class(session=profiler.session)
+            vulnerabilities.extend(scanner.scan(target))
 
     # 5. Reporting
     reporter = Reporter(target, vulnerabilities)

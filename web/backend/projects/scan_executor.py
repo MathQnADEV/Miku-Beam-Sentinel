@@ -7,6 +7,7 @@ engine_path = os.path.join(os.path.dirname(__file__), '../../..')
 sys.path.insert(0, engine_path)
 
 from engine.core.target import Target
+from engine.scanners.registry import select_scanners
 import requests
 
 logger = logging.getLogger(__name__)
@@ -24,71 +25,13 @@ class ScanExecutor:
 
     def _select_scanners(self, tech_stack):
         """
-        Smart scanner selection based on discovered technologies
-        Returns list of scanners most relevant to the target
+        Smart scanner selection based on discovered technologies.
+
+        Delegates to the shared declarative registry (engine/scanners/registry.py)
+        so every scanner (all 23) is reachable and "Unknown" tech defaults to
+        "run it" rather than "skip it" — see that module for the rationale.
         """
-        selected = []
-        
-        # Always run universal/critical scanners
-        from engine.scanners.xss import XSSScanner
-        from engine.scanners.ssrf import SSRFScanner
-        from engine.scanners.xxe import XXEScanner
-        from engine.scanners.ssti import SSTIScanner
-        from engine.scanners.cmdi import CommandInjectionScanner
-        
-        selected.extend([
-            XSSScanner(self.session),
-            SSRFScanner(self.session),
-            CommandInjectionScanner(self.session)
-        ])
-        
-        # Database-specific scanners
-        database = tech_stack.get('database', '').lower()
-        if any(db in database for db in ['mysql', 'mariadb', 'postgres', 'mssql', 'oracle', 'sqlite']):
-            from engine.scanners.injection import SQLInjectionScanner
-            selected.append(SQLInjectionScanner(self.session))
-        
-        if any(db in database for db in ['mongo', 'couchdb', 'redis', 'cassandra']):
-            from engine.scanners.nosql import NoSQLInjectionScanner
-            selected.append(NoSQLInjectionScanner(self.session))
-        
-        # Framework/language-specific
-        backend = tech_stack.get('backend', '').lower()
-        languages = [lang.lower() for lang in tech_stack.get('languages', [])]
-        
-        if 'php' in backend or 'php' in languages:
-            selected.append(XXEScanner(self.session))
-            selected.append(SSTIScanner(self.session))
-        
-        if 'python' in backend or 'python' in languages or 'django' in backend or 'flask' in backend:
-            selected.append(SSTIScanner(self.session))
-        
-        # API-specific scanners
-        frameworks = [f.lower() for f in tech_stack.get('frameworks', [])]
-        if 'graphql' in frameworks:
-            from engine.scanners.graphql import GraphQLInjectionScanner
-            selected.append(GraphQLInjectionScanner(self.session))
-        
-        # Authentication/authorization scanners (always check these for web apps)
-        from engine.scanners.bola import BOLAScanner
-        from engine.scanners.access_control import BrokenAccessControlScanner
-        from engine.scanners.jwt import JWTScanner
-        
-        selected.extend([
-            BOLAScanner(self.session),
-            BrokenAccessControlScanner(self.session),
-            JWTScanner(self.session)
-        ])
-        
-        # Additional security checks
-        from engine.scanners.misconfig import SecurityMisconfigurationScanner
-        from engine.scanners.data_exposure import SensitiveDataExposureScanner
-        
-        selected.extend([
-            SecurityMisconfigurationScanner(self.session),
-            SensitiveDataExposureScanner(self.session)
-        ])
-        
+        selected = select_scanners(tech_stack, self.session)
         logger.info(f"Smart selection: {len(selected)} scanners chosen based on tech stack")
         return selected
     

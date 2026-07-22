@@ -3,15 +3,24 @@
 Covers the boolean-differential (real bracket-notation operator injection) and the
 baseline-gated error-based check.
 """
+from urllib.parse import quote_plus
 from engine.scanners.nosql import NoSQLInjectionScanner
 from engine.core.target import Target
+
+# _operator_url URL-encodes the bracket-notation key (e.g. "[$ne]" -> "%5B%24ne%5D"),
+# since raw "[", "]", "$" are not valid unencoded query characters -- a real server's
+# query-string parser (e.g. Node's `qs`) decodes the query string before parsing keys,
+# so the encoded form is parsed identically. Handlers below match the encoded form.
+_NE_KEY = quote_plus("[$ne]")
+_EQ_KEY = quote_plus("[$eq]")
+_WHERE_KEY = quote_plus("[$where]")
 
 
 def test_boolean_differential_detected_when_ne_returns_much_more_data(make_session):
     def handler(method, url, **kw):
-        if "[$ne]=" in url:
+        if _NE_KEY + "=" in url:
             return {"text": "x" * 200, "status_code": 200}  # "matches everything"
-        if "[$eq]=" in url:
+        if _EQ_KEY + "=" in url:
             return {"text": "no results", "status_code": 200}  # matches nothing
         return {"text": "welcome page", "status_code": 200}
 
@@ -29,9 +38,9 @@ def test_no_boolean_differential_when_responses_are_similar(make_session):
 
 def test_error_based_flagged_when_signature_absent_from_baseline(make_session):
     def handler(method, url, **kw):
-        if "[$where]=" in url:
+        if _WHERE_KEY + "=" in url:
             return {"text": "MongoError: unsupported operator", "status_code": 200}
-        if "[$ne]=" in url or "[$eq]=" in url:
+        if _NE_KEY + "=" in url or _EQ_KEY + "=" in url:
             return {"text": "not found", "status_code": 200}  # no boolean diff
         return {"text": "welcome page", "status_code": 200}  # baseline
 
@@ -56,11 +65,11 @@ def test_boolean_differential_not_flagged_when_ne_response_size_is_unstable(make
     calls = {"n": 0}
 
     def handler(method, url, **kw):
-        if "[$ne]=" in url:
+        if _NE_KEY + "=" in url:
             calls["n"] += 1
             size = 200 if calls["n"] == 1 else 20  # unstable across repeated requests
             return {"text": "x" * size, "status_code": 200}
-        if "[$eq]=" in url:
+        if _EQ_KEY + "=" in url:
             return {"text": "no results", "status_code": 200}
         return {"text": "welcome page", "status_code": 200}
 

@@ -1,6 +1,7 @@
 from typing import List
 from .base import BaseScanner, Vulnerability
 from ..core.target import Target
+from ..core.url_utils import get_query_params, merge_params, set_query_param
 import logging
 import re
 import time
@@ -307,8 +308,7 @@ class SQLInjectionScanner(BaseScanner):
         what tells a genuine SQL error/delay apart from text or latency the endpoint
         always has.
         """
-        sep = '&' if '?' in target.url else '?'
-        url = f"{target.url}{sep}{param}=1"
+        url = set_query_param(target.url, param, '1')
         try:
             start = time.time()
             response = self.session.get(url, timeout=10)
@@ -346,7 +346,12 @@ class SQLInjectionScanner(BaseScanner):
 
         payload_count = 0
 
-        for param in self.PARAMS:
+        # Real query parameters this specific URL already carries (e.g. a
+        # crawler-discovered "?id=42") are tested first — they're evidence of
+        # an actual input, not a guess — followed by the default guessed names.
+        params_to_test = merge_params(get_query_params(target.url), self.PARAMS)
+
+        for param in params_to_test:
             baseline_text, baseline_elapsed = self._baseline(target, param)
             param_found = False  # report at most one finding per parameter (dedupe)
             for payload in self.PAYLOADS:
@@ -358,11 +363,10 @@ class SQLInjectionScanner(BaseScanner):
                     callback(payload)
 
                 try:
-                    # Build test URL
-                    if '?' in target.url:
-                        test_url = f"{target.url}&{param}={payload}"
-                    else:
-                        test_url = f"{target.url}?{param}={payload}"
+                    # Replace (not append) the parameter's value, so a real
+                    # query param the URL already carries is genuinely fuzzed
+                    # instead of producing an inert duplicate query key.
+                    test_url = set_query_param(target.url, param, payload)
 
                     start_time = time.time()
                     response = self.session.get(test_url, timeout=10)
@@ -402,13 +406,7 @@ class SQLInjectionScanner(BaseScanner):
                             and elapsed >= baseline_elapsed + self.DELAY_THRESHOLD:
                         fast_payload = self._fast_control_payload(payload)
                         if fast_payload:
-                            # Built the same way as test_url (not test_url.replace(...)) so a
-                            # payload that happened to also appear in target.url couldn't
-                            # corrupt the substitution.
-                            if '?' in target.url:
-                                fast_url = f"{target.url}&{param}={fast_payload}"
-                            else:
-                                fast_url = f"{target.url}?{param}={fast_payload}"
+                            fast_url = set_query_param(target.url, param, fast_payload)
                             fast_start = time.time()
                             self.session.get(fast_url, timeout=10)
                             fast_elapsed = time.time() - fast_start

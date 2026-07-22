@@ -6,6 +6,7 @@ from colorama import init, Fore, Style
 from engine.core.target import Target
 from engine.core.profiler import Profiler
 from engine.core.auth import Authenticator, AuthType
+from engine.core.endpoint_selection import select_scan_targets
 from engine.scanners.registry import REGISTRY
 from engine.reporting.reporter import Reporter
 
@@ -128,6 +129,16 @@ def main():
     # to become reachable from the CLI. An explicit --scan-<key> always runs that
     # scanner regardless of detected tech (only the automatic/web selection path
     # applies each spec's `applies_to` predicate).
+    #
+    # Reconnaissance discovers far more of the attack surface than the single
+    # configured URL (profiler.profile() already populated target.discovered_urls/
+    # subdirectories above) -- select_scan_targets turns that into the actual set
+    # of endpoints scanned, bounded so it doesn't uncontrollably multiply an
+    # already request-heavy scan (issue #21).
+    scan_targets = select_scan_targets(target)
+    if len(scan_targets) > 1:
+        print(f"{Fore.BLUE}[*] Scanning {len(scan_targets)} endpoint(s): base target + {len(scan_targets) - 1} discovered{Style.RESET_ALL}")
+
     vulnerabilities = []
     for spec in REGISTRY:
         # Matches the explicit dest= given to add_argument above (rather than
@@ -136,7 +147,8 @@ def main():
         if args.scan_all or getattr(args, f"scan_{spec.key.replace('-', '_')}"):
             logger.info(f"Running {spec.label} scan...")
             scanner = spec.scanner_class(session=profiler.session)
-            vulnerabilities.extend(scanner.scan(target))
+            for scan_target in scan_targets:
+                vulnerabilities.extend(scanner.scan(scan_target))
 
     # 5. Reporting
     reporter = Reporter(target, vulnerabilities)

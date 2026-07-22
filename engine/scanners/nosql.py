@@ -16,15 +16,36 @@ approach:
     somewhere on the page).
 """
 from typing import List
+from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 import logging
 from .base import BaseScanner, Vulnerability
 from ..core.target import Target
+from ..core.url_utils import get_query_params, merge_params, set_query_param
 
 logger = logging.getLogger(__name__)
 
 
+def _operator_url(url: str, param: str, operator: str, value: str) -> str:
+    """Build a MongoDB-style bracket-notation operator injection URL (e.g.
+    ``id[$ne]=...``), dropping any existing bare `param` key rather than
+    leaving it alongside the operator key. Some query-string parsers (e.g.
+    Node's `qs`, used by Express/Mongoose) resolve a key used as both a
+    scalar (``id=42``) and an object path (``id[$ne]=x``) inconsistently, so
+    the two must not coexist."""
+    parts = urlsplit(url)
+    pairs = [(name, val) for name, val in parse_qsl(parts.query, keep_blank_values=True) if name != param]
+    pairs.append((f"{param}[{operator}]", value))
+    new_query = urlencode(pairs)
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, new_query, parts.fragment))
+
+
 class NoSQLInjectionScanner(BaseScanner):
     """Scanner for detecting NoSQL injection vulnerabilities"""
+
+    # Parameter names to test. A class attribute (matching the convention used
+    # by SQLInjectionScanner/XSSScanner) so real discovered parameters can be
+    # merged ahead of it.
+    PARAMS = ['id', 'user', 'username', 'search', 'q']
 
     # Only strings that are strong, NoSQL-specific evidence of a broken query.
     # Generic words like 'mongo', 'NoSQL', 'invalid query', 'database error' were
@@ -50,7 +71,8 @@ class NoSQLInjectionScanner(BaseScanner):
         """Payload-free control request; establishes the page's normal body so an
         error signature is only trusted if the payload actually introduced it."""
         try:
-            response = self.session.get(target.url, params={param: 'miku_beam_baseline_1'}, timeout=5)
+            url = set_query_param(target.url, param, 'miku_beam_baseline_1')
+            response = self.session.get(url, timeout=5)
             return response.text.lower()
         except Exception:
             return ""
@@ -60,7 +82,10 @@ class NoSQLInjectionScanner(BaseScanner):
         vulnerabilities = []
         logger.info(f"Starting NoSQL scan on {target.url}")
 
-        params = ['id', 'user', 'username', 'search', 'q']
+        # Real query parameters this specific URL already carries (e.g. a
+        # crawler-discovered "?id=42") are tested first -- they're evidence of
+        # an actual input, not a guess -- followed by the default guessed names.
+        params = merge_params(get_query_params(target.url), self.PARAMS)
 
         for param in params:
             if callback:
@@ -70,12 +95,11 @@ class NoSQLInjectionScanner(BaseScanner):
 
             # --- Boolean-differential: a real operator vs. a value that cannot match ---
             try:
-                sep = '&' if '?' in target.url else '?'
                 # $ne against a fixed sentinel matches any document where the field is
                 # simply not equal to that (near-universally true) sentinel.
-                true_url = f"{target.url}{sep}{param}[$ne]=miku_beam_impossible_9f8e7d6c"
+                true_url = _operator_url(target.url, param, '$ne', 'miku_beam_impossible_9f8e7d6c')
                 # A value nothing will ever equal — the query-logic control.
-                false_url = f"{target.url}{sep}{param}[$eq]=miku_beam_impossible_9f8e7d6c"
+                false_url = _operator_url(target.url, param, '$eq', 'miku_beam_impossible_9f8e7d6c')
 
                 true_resp = self.session.get(true_url, timeout=5)
                 false_resp = self.session.get(false_url, timeout=5)
@@ -127,7 +151,7 @@ class NoSQLInjectionScanner(BaseScanner):
 
             # --- Error-based (baseline-gated) ---
             try:
-                error_url = f"{target.url}{'&' if '?' in target.url else '?'}{param}[$where]=this.constructor.constructor"
+                error_url = _operator_url(target.url, param, '$where', 'this.constructor.constructor')
                 error_resp = self.session.get(error_url, timeout=5)
                 error_text_lower = error_resp.text.lower()
 

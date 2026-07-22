@@ -150,6 +150,86 @@ def test_graphql_relevant_predicate_directly():
     assert _graphql_relevant({"frameworks": ["jQuery"]}) is False
 
 
+# ---- open_ports / discovered_paths evidence (issue #5) ----------------------
+# Reconnaissance (port scan, crawler) can now hand the registry evidence that a
+# passive HTTP fingerprint never had -- an open 3306/27017 port, or a
+# discovered "/graphql" endpoint -- without requiring a positive `database`/
+# `frameworks` string fingerprint too.
+
+@pytest.mark.parametrize("port", [3306, 5432, 1433, 1521])
+def test_sql_family_included_by_open_sql_port_alone(port):
+    assert _sql_family({"open_ports": [{"port": port}]}) is True
+
+
+@pytest.mark.parametrize("port", [27017, 6379, 5984, 9042])
+def test_nosql_family_included_by_open_nosql_port_alone(port):
+    assert _nosql_family({"open_ports": [{"port": port}]}) is True
+
+
+def test_open_nosql_port_alone_does_not_exclude_sql():
+    # Regression guard (adversarial review): an unrelated open cache/queue port
+    # must NOT veto a scanner that used to run unconditionally when the
+    # database was unfingerprinted -- e.g. a real MySQL app that also runs
+    # Redis for sessions/caching (a very common architecture). Only a
+    # DATABASE-STRING fingerprint is confident enough to exclude on its own;
+    # ports may only ADD inclusion or override an existing string-based
+    # exclusion, never independently cause one.
+    assert _sql_family({"open_ports": [{"port": 27017}]}) is True
+
+
+def test_open_sql_port_alone_does_not_exclude_nosql():
+    assert _nosql_family({"open_ports": [{"port": 3306}]}) is True
+
+
+def test_port_evidence_overrides_a_misleading_database_string():
+    # A dual-stack app (e.g. Postgres for primary data, Redis for caching/queues)
+    # was fingerprinted as "PostgreSQL" only, but a 6379 (Redis) port is also
+    # open -- NoSQL scanning should NOT be excluded just because the passive
+    # fingerprint only caught one of the two backends.
+    tech = {"database": "PostgreSQL", "open_ports": [{"port": 6379}]}
+    assert _sql_family(tech) is True
+    assert _nosql_family(tech) is True
+
+
+def test_sql_port_overrides_a_confidently_nosql_only_database_string():
+    # Mirror of the above: a MongoDB-fingerprinted app that ALSO has a 3306
+    # (MySQL) port open -- SQL scanning should not stay excluded just because
+    # the passive fingerprint only caught the NoSQL half of a dual-stack app.
+    tech = {"database": "MongoDB", "open_ports": [{"port": 3306}]}
+    assert _sql_family(tech) is True
+    assert _nosql_family(tech) is True
+
+
+def test_unrelated_port_does_not_override_a_confident_exclusion():
+    # The database string confidently says SQL-only (MySQL), and the only open
+    # port is unrelated to either family (e.g. plain HTTPS) -- NoSQL must stay
+    # excluded, since there is no corroborating NoSQL evidence at all.
+    tech = {"database": "MySQL", "open_ports": [{"port": 443}]}
+    assert _nosql_family(tech) is False
+    assert _sql_family(tech) is True
+
+
+def test_open_ports_accepts_bare_int_list_and_tolerates_malformed_entries():
+    assert _sql_family({"open_ports": [3306]}) is True
+    assert _sql_family({"open_ports": [{"port": "not-a-number"}, {"no_port_key": 1}]}) is True  # degrades, doesn't crash
+    assert _sql_family({"open_ports": "not-iterable-of-dicts"}) is True  # iterating chars degrades harmlessly
+    assert _sql_family({"open_ports": 12345}) is True  # not iterable at all -> caught, degrades to no evidence
+
+
+def test_graphql_included_by_discovered_path_alone():
+    # Frameworks confidently detected WITHOUT graphql would normally exclude the
+    # scanner, but a crawled "/graphql" endpoint is direct, positive evidence
+    # that overrides that exclusion.
+    tech = {"frameworks": ["Bootstrap", "jQuery"], "discovered_paths": ["http://x.local/api/graphql"]}
+    assert _graphql_relevant(tech) is True
+
+
+def test_graphql_relevant_survives_malformed_discovered_paths():
+    assert _graphql_relevant({"discovered_paths": None}) is True
+    assert _graphql_relevant({"discovered_paths": 123}) is True
+    assert _graphql_relevant({"frameworks": ["jQuery"], "discovered_paths": [None, "/health"]}) is False
+
+
 # ---- Predicates degrade to "run it" on malformed input, not crash ----------
 # Regression guard from adversarial review: these are public, directly-tested
 # functions with no guarantee about who calls them or with what -- a malformed

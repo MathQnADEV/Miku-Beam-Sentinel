@@ -5,6 +5,7 @@ a payload-free baseline, not judged in isolation — so an endpoint that is mere
 or a page that always contains an "SQL"-flavoured phrase, does not false-positive.
 """
 import time
+from urllib.parse import quote_plus
 
 from engine.scanners.injection import SQLInjectionScanner
 from engine.core.target import Target
@@ -59,7 +60,10 @@ def test_time_based_confirmed_with_fast_control(make_session, monkeypatch):
     monkeypatch.setattr(SQLInjectionScanner, "DELAY_THRESHOLD", 0.05)
 
     def handler(method, url, **kw):
-        if "SLEEP(5)" in url:
+        # set_query_param URL-encodes the payload value (e.g. "(" -> "%28"),
+        # so the fast-control variant SLEEP(0) doesn't collide with SLEEP(5)
+        # once encoded, and vice versa.
+        if quote_plus("SLEEP(5)") in url:
             time.sleep(0.08)
         return {"text": "normal page", "status_code": 200}
 
@@ -96,7 +100,7 @@ def test_time_based_confirmed_for_non_five_second_delay(make_session, monkeypatc
     monkeypatch.setattr(SQLInjectionScanner, "DELAY_THRESHOLD", 0.05)
 
     def handler(method, url, **kw):
-        if "SLEEP(10)" in url:
+        if quote_plus("SLEEP(10)") in url:
             time.sleep(0.08)
         return {"text": "normal page", "status_code": 200}
 
@@ -114,7 +118,7 @@ def test_time_based_falls_back_to_reproducibility_without_a_fast_variant(make_se
     monkeypatch.setattr(SQLInjectionScanner, "DELAY_THRESHOLD", 0.05)
 
     def handler(method, url, **kw):
-        if "SLEEP(RAND" in url:
+        if quote_plus("SLEEP(RAND") in url:
             time.sleep(0.08)
         return {"text": "normal page", "status_code": 200}
 
@@ -138,7 +142,9 @@ def test_time_based_not_flagged_when_delay_is_keyword_triggered_not_real(make_se
     monkeypatch.setattr(SQLInjectionScanner, "DELAY_THRESHOLD", 0.05)
 
     def handler(method, url, **kw):
-        if "SLEEP(" in url:  # keyword-triggered tarpit: delays regardless of the digit
+        # keyword-triggered tarpit: delays regardless of the digit. Checked against
+        # the URL-encoded form since set_query_param percent-encodes "(" -> "%28".
+        if quote_plus("SLEEP(") in url:
             time.sleep(0.08)
         return {"text": "normal page", "status_code": 200}
 

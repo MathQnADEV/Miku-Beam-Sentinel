@@ -1,12 +1,12 @@
 from typing import List
 from .base import BaseScanner, Vulnerability
 from ..core.target import Target
+from ..core.url_utils import get_query_params, merge_params, set_query_param
 from bs4 import BeautifulSoup
 import json
 import logging
 import random
 import re
-import urllib.parse
 
 logger = logging.getLogger(__name__)
 
@@ -398,7 +398,12 @@ class XSSScanner(BaseScanner):
 
         payload_count = 0
 
-        for param in self.PARAMS:
+        # Real query parameters this specific URL already carries (e.g. a
+        # crawler-discovered "?q=foo") are tested first -- they're evidence of
+        # an actual input, not a guess -- followed by the default guessed names.
+        params_to_test = merge_params(get_query_params(target.url), self.PARAMS)
+
+        for param in params_to_test:
             param_found = False  # report at most one finding per parameter (dedupe)
             for payload in self.PAYLOADS:
                 if param_found:
@@ -412,11 +417,10 @@ class XSSScanner(BaseScanner):
                     canary = str(random.randint(100000, 999999))
                     test_payload, marker = self._build_test_payload(payload, canary)
 
-                    # Build test URL
-                    if '?' in target.url:
-                        test_url = f"{target.url}&{param}={urllib.parse.quote(test_payload)}"
-                    else:
-                        test_url = f"{target.url}?{param}={urllib.parse.quote(test_payload)}"
+                    # Replace (not append) the parameter's value, so a real query
+                    # param the URL already carries is genuinely fuzzed instead of
+                    # producing an inert duplicate query key.
+                    test_url = set_query_param(target.url, param, test_payload)
 
                     response = self.session.get(test_url, headers=target.headers, timeout=5)
 

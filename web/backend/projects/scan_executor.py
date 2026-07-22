@@ -7,6 +7,7 @@ engine_path = os.path.join(os.path.dirname(__file__), '../../..')
 sys.path.insert(0, engine_path)
 
 from engine.core.target import Target
+from engine.core.endpoint_selection import select_scan_targets
 from engine.scanners.registry import select_scanners
 import requests
 
@@ -177,17 +178,44 @@ class ScanExecutor:
                 send_update('Web Crawling', "Crawler failed, using base URL", 30)
             
             logger.info(f"Reconnaissance complete. Ports: {len(recon_data['open_ports'])}, Subdomains: {len(recon_data['subdomains'])}, Directories: {len(recon_data['directories'])}, URLs: {len(recon_data['urls'])}")
-            
+
+            # Feed reconnaissance results into the target so scanning actually
+            # covers what recon mapped, not just the one URL the user configured
+            # (issue #5). Previously these fields were only ever assembled into
+            # the separate `recon_data`/`results` dicts for display -- never fed
+            # back into the `target` object the scanners operate on.
+            target.open_ports = recon_data['open_ports']
+            target.subdomains = recon_data['subdomains']
+            target.subdirectories = recon_data['directories']
+            target.discovered_urls = recon_data['urls']
+            target.detailed_tech_stack = recon_data['technologies']
+
             # =================================================================
             # PHASE 2: TARGETED VULNERABILITY SCANNING (30-85%)
             # =================================================================
             logger.info("=== Starting Targeted Vulnerability Scanning ===")
             send_update('Scanning', "Starting targeted vulnerability scanning...", 30, {'phase': 'scanning'})
-            
-            # Smart scanner selection based on discovered technologies
-            selected_scanners = self._select_scanners(recon_data['technologies'])
+
+            # Smart scanner selection based on discovered technologies, enriched
+            # with open_ports (e.g. 3306/27017 -> SQL/NoSQL evidence even without
+            # a tech-string fingerprint) and discovered_paths (a crawled/"/graphql"
+            # endpoint is direct evidence, independent of the frameworks guess).
+            discovered_paths = list(recon_data['urls']) + [
+                d.get('path', d) if isinstance(d, dict) else d for d in recon_data['directories']
+            ]
+            tech_stack_for_selection = dict(recon_data['technologies'] or {})
+            tech_stack_for_selection['open_ports'] = recon_data['open_ports']
+            tech_stack_for_selection['discovered_paths'] = discovered_paths
+            selected_scanners = self._select_scanners(tech_stack_for_selection)
             logger.info(f"Selected {len(selected_scanners)} scanners based on technology stack")
-            
+
+            # Additional in-scope endpoints (crawled URLs, discovered directories)
+            # to scan alongside the base target, bounded so this doesn't
+            # uncontrollably multiply an already request-heavy scan (issue #21).
+            scan_targets = select_scan_targets(target)
+            logger.info(f"Scanning {len(scan_targets)} endpoint(s): base target + {len(scan_targets) - 1} discovered")
+            send_update('Scanning', f"Scanning {len(scan_targets)} endpoint(s) (base + discovered)...", 30)
+
             all_vulnerabilities = []
             
             # Run selected scanners
@@ -213,8 +241,12 @@ class ScanExecutor:
                     async_to_sync(channel_layer.group_send)(group_name, payload_data)
 
                 try:
-                    # Execute scanner (individual requests have their own timeouts)
-                    vulns = scanner.scan(target, callback=on_payload_tested)
+                    # Execute scanner against the base target plus every
+                    # discovered endpoint (individual requests have their own
+                    # timeouts).
+                    vulns = []
+                    for scan_target in scan_targets:
+                        vulns.extend(scanner.scan(scan_target, callback=on_payload_tested))
                     all_vulnerabilities.extend(vulns)
                     logger.info(f"{scanner_name} found {len(vulns)} vulnerabilities")
                     

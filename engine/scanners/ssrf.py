@@ -1,5 +1,6 @@
 from .base import BaseScanner, Vulnerability
 from ..core.target import Target
+from ..core.url_utils import get_query_params, merge_params, set_query_param
 from typing import List
 import logging
 
@@ -91,7 +92,12 @@ class SSRFScanner(BaseScanner):
         "http://127.0.0.0/8",
         "http://0.0.0.0/0",
     ]
-    
+
+    # Common parameter names for URLs. A class attribute (matching the
+    # convention used by SQLInjectionScanner/XSSScanner) so real discovered
+    # parameters can be merged ahead of it.
+    PARAMS = ['url', 'uri', 'path', 'dest', 'redirect', 'link', 'callback', 'return', 'page', 'continue', 'view', 'file', 'document', 'folder', 'root', 'pg', 'style', 'template', 'php_path', 'doc']
+
     INDICATORS = [
         "ami-id",
         "instance-id",
@@ -119,25 +125,27 @@ class SSRFScanner(BaseScanner):
         vulnerabilities = []
         logger.info(f"Starting comprehensive SSRF scan on {target.url}")
         
-        # Common parameter names for URLs
-        url_params = ['url', 'uri', 'path', 'dest', 'redirect', 'link', 'callback', 'return', 'page', 'continue', 'view', 'file', 'document', 'folder', 'root', 'pg', 'style', 'template', 'php_path', 'doc']
-        
+        # Real query parameters this specific URL already carries (e.g. a
+        # crawler-discovered "?redirect=/home") are tested first -- they're
+        # evidence of an actual input, not a guess -- followed by the default
+        # guessed names.
+        url_params = merge_params(get_query_params(target.url), self.PARAMS)
+
         payload_count = 0
         total_tests = len(self.PAYLOADS) * len(url_params)
-        
+
         for payload in self.PAYLOADS:
             if callback:
                 callback(payload)
-            
+
             for param in url_params:
                 payload_count += 1
-                
-                # Build test URL
-                if '?' in target.url:
-                    test_url = f"{target.url}&{param}={payload}"
-                else:
-                    test_url = f"{target.url}?{param}={payload}"
-                
+
+                # Replace (not append) the parameter's value, so a real query
+                # param the URL already carries is genuinely fuzzed instead of
+                # producing an inert duplicate query key.
+                test_url = set_query_param(target.url, param, payload)
+
                 try:
                     # Make request with timeout
                     response = self.session.get(test_url, timeout=3, allow_redirects=False)
